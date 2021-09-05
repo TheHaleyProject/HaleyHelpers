@@ -15,14 +15,14 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Product>Haley.Helpers</Product>
     <PackageId>Haley.Helpers</PackageId>
-    <Version>2.0.2</Version>
+    <Version>2.0.3</Version>
     <AssemblyName>Haley.Helpers</AssemblyName>
     <PackageProjectUrl>https://github.com/rmsmech/HaleyHelpers</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rmsmech/HaleyHelpers</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 	  <IncludeSymbols>true</IncludeSymbols>
 	  <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-	  <PackageReleaseNotes>Added MapProperties Method in general utils.</PackageReleaseNotes>
+	  <PackageReleaseNotes>Added methods to map datarow source to object directly.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -61,7 +61,7 @@
     </When>
     <Otherwise>
      <ItemGroup>
-       <PackageReference Include="Haley.Extensions" Version="2.0.1" />
+       <PackageReference Include="Haley.Extensions" Version="2.0.2" />
 	 </ItemGroup>
     </Otherwise>
 </Choose>  

@@ -15,6 +15,8 @@ namespace Haley.Utils
         {
             try
             {
+                //SelectQuery query = new SelectQuery("Win32_processor");
+                //var mng_obj_searcher = new ManagementObjectSearcher(query);
                 var mng_obj_searcher = new ManagementObjectSearcher("Select SerialNumber From Win32_BaseBoard");
                 var collection = mng_obj_searcher.Get();
                 string id = null;
