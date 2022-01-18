@@ -11,7 +11,7 @@ namespace Haley.Utils
 {
     public static class IDUtils
     {
-        public static string getMotherBoardID()
+        public static string GetMotherBoardID()
         {
             try
             {
@@ -32,7 +32,7 @@ namespace Haley.Utils
                 return string.Empty;
             }
         }
-        public static string getProcessorID()
+        public static string GetProcessorID()
         {
             try
             {
@@ -52,11 +52,11 @@ namespace Haley.Utils
             }
         }
 
-        public static string getID()
+        public static string GetID()
         {
             try
             {
-                return (getMotherBoardID() + "###" +getProcessorID());
+                return (GetMotherBoardID() + "###" +GetProcessorID());
             }
             catch (Exception)
             {

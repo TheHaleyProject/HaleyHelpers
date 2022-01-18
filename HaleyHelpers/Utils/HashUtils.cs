@@ -15,13 +15,13 @@ namespace Haley.Utils
     public static class HashUtils
     {
         #region GetRandom
-        public static string getRandomString(int number_of_bits = 1024)
+        public static string GetRandomString(int number_of_bits = 1024)
         {
-            return Convert.ToBase64String(getRandomBytes(number_of_bits).bytes);
+            return Convert.ToBase64String(GetRandomBytes(number_of_bits).bytes);
         }
-        public static (int length, byte[] bytes) getRandomBytes(int number_of_bits)
+        public static (int length, byte[] bytes) GetRandomBytes(int number_of_bits)
         {
-            var length = calculateBytes(number_of_bits);
+            var length = CalculateBytes(number_of_bits);
             var _byte = new byte[length];
             using (var rng = new RNGCryptoServiceProvider()) { rng.GetNonZeroBytes(_byte); } // Generating random bytes of the provided length values.
             return (length, _byte);
@@ -29,14 +29,14 @@ namespace Haley.Utils
         #endregion
 
         #region HashPasswords
-        public static (string salt, string value) getHashWithSalt(SecureString to_hash, int salt_bits = 1024, int value_bits = 1024)
+        public static (string salt, string value) GetHashWithSalt(SecureString to_hash, int salt_bits = 1024, int value_bits = 1024)
         {
-            return getHashWithSalt(unWrap(to_hash), salt_bits, value_bits);
+            return GetHashWithSalt(UnWrap(to_hash), salt_bits, value_bits);
         }
-        public static (string salt, string value) getHashWithSalt(string to_hash, int salt_bits = 1024, int value_bits = 1024)
+        public static (string salt, string value) GetHashWithSalt(string to_hash, int salt_bits = 1024, int value_bits = 1024)
         {
-            var value_length = calculateBytes(value_bits);
-            byte[] _salt = getRandomBytes(salt_bits).bytes;//Getting random bytes of specified length to use as a key.
+            var value_length = CalculateBytes(value_bits);
+            byte[] _salt = GetRandomBytes(salt_bits).bytes;//Getting random bytes of specified length to use as a key.
             byte[] _value = null;
             using (var _rfcProcessor = new Rfc2898DeriveBytes(to_hash, _salt)) // Hashing the provided string, with the random generated or user provided bytes.
             {
@@ -51,17 +51,17 @@ namespace Haley.Utils
         /// <param name="salt">Salt in base 64</param>
         /// <param name="value_bits"></param>
         /// <returns></returns>
-        public static string getHash(SecureString to_hash, string salt, int value_bits = 1024)
+        public static string GetHash(SecureString to_hash, string salt, int value_bits = 1024)
         {
-            return getHash(unWrap(to_hash), salt, value_bits);
+            return GetHash(UnWrap(to_hash), salt, value_bits);
         }
-        public static string getHash(string to_hash, string salt, int value_bits = 1024)
+        public static string GetHash(string to_hash, string salt, int value_bits = 1024)
         {
-            if (!salt.isBase64()) return null;
+            if (!salt.IsBase64()) return null;
             byte[] _salt = Convert.FromBase64String(salt);
             byte[] _value = null;
 
-            var value_length = calculateBytes(value_bits);
+            var value_length = CalculateBytes(value_bits);
 
             using (var _rfcProcessor = new Rfc2898DeriveBytes(to_hash, _salt)) // Hashing the provided string, with the random generated or user provided bytes.
             {
@@ -69,7 +69,7 @@ namespace Haley.Utils
             }
             return Convert.ToBase64String(_value);
         }
-        public static string unWrap(SecureString input_secure_string)
+        public static string UnWrap(SecureString input_secure_string)
         {
             if (input_secure_string == null) return null;
             IntPtr _pointer = IntPtr.Zero;
@@ -87,7 +87,7 @@ namespace Haley.Utils
                 Marshal.ZeroFreeGlobalAllocUnicode(_pointer);
             }
         }
-        public static int calculateBytes(int number_of_bits)
+        public static int CalculateBytes(int number_of_bits)
         {
             var length = (int)Math.Round(number_of_bits / 8.0, MidpointRounding.AwayFromZero);
             if (length < 8) length = 8;
@@ -96,13 +96,13 @@ namespace Haley.Utils
         #endregion
 
         #region ComputeHashes
-        public static string computeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true)
+        public static string ComputeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true)
         {
             MemoryStream ms = new MemoryStream();
             try
             {
                 buffered_stream.CopyTo(ms);
-                return _convertToString(computeHash(ms.ToArray(), method),encodeBase64);
+                return _convertToString(ComputeHash(ms.ToArray(), method),encodeBase64);
             }
             catch (Exception)
             {
@@ -114,12 +114,12 @@ namespace Haley.Utils
             }
 
         }
-        public static string computeHash(string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
+        public static string ComputeHash(string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
         {
             var _to_hash_bytes = Encoding.ASCII.GetBytes(to_hash);
-            return _convertToString(computeHash(_to_hash_bytes, method), encodeBase64);
+            return _convertToString(ComputeHash(_to_hash_bytes, method), encodeBase64);
         }
-        public static string computeHash(FileInfo file_info, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
+        public static string ComputeHash(FileInfo file_info, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
         {
             try
             {
@@ -128,7 +128,7 @@ namespace Haley.Utils
                 {
                     using (var buffered_stream = new BufferedStream(file_stream))
                     {
-                        return computeHash(buffered_stream,method,encodeBase64);
+                        return ComputeHash(buffered_stream,method,encodeBase64);
                     }
                 }
 
@@ -138,7 +138,7 @@ namespace Haley.Utils
                 throw;
             }
         }
-        public static byte[] computeHash(byte[] stream_array, HashMethod method = HashMethod.MD5)
+        public static byte[] ComputeHash(byte[] stream_array, HashMethod method = HashMethod.MD5)
         {
             byte[] computed_hash = null;
             switch (method)

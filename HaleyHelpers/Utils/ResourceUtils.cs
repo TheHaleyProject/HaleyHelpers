@@ -11,24 +11,24 @@ namespace Haley.Utils
 {
     public static class ResourceUtils
     {
-        public static bool downloadEmbeddedResource(string resource_name, Assembly assembly_name, string save_dir_path, string save_file_name = null)
+        public static bool DownloadEmbeddedResource(string resource_name, Assembly assembly_name, string save_dir_path, string save_file_name = null)
         {
             try
             {
                 if (save_file_name == null) save_file_name = resource_name; //use same resource name as target name
                 string full_file_path = Path.Combine(save_dir_path, save_file_name);
-                return downloadEmbeddedResource(resource_name, assembly_name, full_file_path);
+                return DownloadEmbeddedResource(resource_name, assembly_name, full_file_path);
             }
             catch (Exception)
             {
                 throw;
             }
         }
-        public static bool downloadEmbeddedResource(string resource_name, Assembly assembly_name, string save_file_path)
+        public static bool DownloadEmbeddedResource(string resource_name, Assembly assembly_name, string save_file_path)
         {
             try
             {
-                var _streambyte = getEmbeddedResource(resource_name, assembly_name);
+                var _streambyte = GetEmbeddedResource(resource_name, assembly_name);
                 File.WriteAllBytes(save_file_path, _streambyte);
                 return true;
             }
@@ -38,7 +38,7 @@ namespace Haley.Utils
                 throw;
             }
         }
-        public static byte[] getEmbeddedResource(string full_resource_name, Assembly assembly_name)
+        public static byte[] GetEmbeddedResource(string full_resource_name, Assembly assembly_name)
         {
             try
             {

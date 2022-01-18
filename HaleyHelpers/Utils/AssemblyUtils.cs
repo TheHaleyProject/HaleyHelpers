@@ -11,7 +11,7 @@ namespace Haley.Utils
 {
     public static class AssemblyUtils
     {
-        public static void forceLoadDependencies(AssemblyName[] reference_name_array)
+        public static void ForceLoadDependencies(AssemblyName[] reference_name_array)
         {
             try
             {
