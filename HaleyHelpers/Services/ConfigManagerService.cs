@@ -15,8 +15,8 @@ namespace Haley.Services
 {
     public class ConfigManagerService : IConfigManager
     {
-        Func<string, string> PreSaveProcessor;
-        Func<string, string> PostLoadProcessor;
+        Func<IConfigInfo, string, string> PreSaveProcessor;
+        Func<IConfigInfo,string, string> PostLoadProcessor;
         private object basePathObj = new object();
         private string _basepath;
         private ConcurrentDictionary<string, (IConfig config, IConfigInfo info)> _configs = new ConcurrentDictionary<string, (IConfig, IConfigInfo)>();
@@ -80,7 +80,7 @@ namespace Haley.Services
                         string contents = File.ReadAllText(finalPath);
                         if (PostLoadProcessor != null) //this should be used by the config manager for any kind of encryption.
                         {
-                            contents = PostLoadProcessor?.Invoke(contents);
+                            contents = PostLoadProcessor?.Invoke(info,contents);
                         }
 
                         data = contents.JsonDeserialize(info.ConfigType) as IConfig;
@@ -208,15 +208,11 @@ namespace Haley.Services
 
             string finalPath = GetSavePath(info);
             var _json = data.ToJson();
-            //if (data is PurgerConfig pData)
-            //{ 
-            //    var newjson = pData.ToJson(); 
-            //}
             string tosaveJson = _json;
 
             if (PreSaveProcessor != null) //this should be used by the config manager for any kind of encryption.
             {
-                tosaveJson = PreSaveProcessor?.Invoke(_json);
+                tosaveJson = PreSaveProcessor?.Invoke(info, _json);
             }
 
             using (FileStream fs = File.Create(finalPath))
@@ -233,7 +229,7 @@ namespace Haley.Services
             EnsureBasePath();
         }
 
-        public void SetProcessors(Func<string, string> presave_processor, Func<string, string> postload_processor)
+        public void SetProcessors(Func<IConfigInfo,string, string> presave_processor, Func<IConfigInfo,string, string> postload_processor)
         {
             PreSaveProcessor = presave_processor;
             PostLoadProcessor = postload_processor;
@@ -257,6 +253,37 @@ namespace Haley.Services
                 {
                     targetRes.config = newData;
                 }
+            }
+        }
+
+        public void ResetConfig(string key)
+        {
+            if (_configs.TryGetValue(key, out var targetRes))
+            {
+                if (ResetConfig(targetRes.info, out var newData))
+                {
+                    targetRes.config = newData;
+                }
+            }
+        }
+        private bool ResetConfig(IConfigInfo info, out IConfig data)
+        {
+            data = null;
+            try
+            {
+                //When an item is registere, also try to load already saved data.
+                if (info.Handler != null)
+                {
+                    var defData = info.Handler.PrepareDefault();
+                    if (defData == null) return false;
+                    data = defData; //Use this as the default data.
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                return false;
             }
         }
     }
