@@ -277,6 +277,7 @@ namespace Haley.Services
                     var defData = info.Handler.PrepareDefault();
                     if (defData == null) return false;
                     data = defData; //Use this as the default data.
+                    info.Handler.UpdateConfig(data);
                     return true;
                 }
                 return false;
