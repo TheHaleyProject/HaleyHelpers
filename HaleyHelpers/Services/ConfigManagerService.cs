@@ -84,8 +84,9 @@ namespace Haley.Services
                         }
 
                         data = contents.JsonDeserialize(info.ConfigType) as IConfig;
-                        if (data == null) break; //If data is null, do not load.
-                        info.Handler.UpdateConfig(data); //This should be used by the model to update its internal state.
+                        var dataCopy = contents.JsonDeserialize(info.ConfigType) as IConfig;
+                        if (data == null || dataCopy == null) break; //If data is null, do not load.
+                        info.Handler.UpdateConfig(dataCopy); //This should be used by the model to update its internal state. So, send in the datacopy (so that even if the user changes/updates, this will not be considered).
                         return true;
                     } while (false);
                 }
@@ -277,7 +278,7 @@ namespace Haley.Services
                     var defData = info.Handler.PrepareDefault();
                     if (defData == null) return false;
                     data = defData; //Use this as the default data.
-                    info.Handler.UpdateConfig(data);
+                    info.Handler.UpdateConfig(info.Handler.PrepareDefault()); //Just to avoid getting updated by the UpdateConfig method, we are sending in a new data.
                     return true;
                 }
                 return false;
