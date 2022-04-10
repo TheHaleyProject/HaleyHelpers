@@ -203,7 +203,7 @@ namespace Haley.Services
             //First call the handler.
             if (info.Handler != null)
             {
-                info.Handler.SaveConfig(); //This should save any in-memory cache data.
+                info.Handler.SaveConfig(ref data); //This should save any in-memory cache data.
             }
 
             string finalPath = GetSavePath(info);
