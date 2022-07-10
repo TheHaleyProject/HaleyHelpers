@@ -139,19 +139,25 @@ namespace Haley.Services
             return TryRegister(new ConfigInfo(key, handler).SetConfigType(configurationType), data,out resultInfo);
         }
 
-        public void Save(string key)
+        public bool Save(string key)
         {
-           if(_configs.TryGetValue(key,out var tosave))
-            {
-                //Save the config.
-                Save(tosave.info, tosave.config);
+            try {
+                if (_configs.TryGetValue(key, out var tosave)) {
+                    //Save the config.
+                    Save(tosave.info, tosave.config);
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception) {
+
+                return false;
             }
         }
 
         public void SaveAll()
         {
-            foreach (var tosave in _configs.Values)
-            {
+            foreach (var tosave in _configs.Values) {
                 Save(tosave.info, tosave.config);
             }
         }
