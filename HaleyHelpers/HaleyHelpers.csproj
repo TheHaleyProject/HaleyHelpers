@@ -15,7 +15,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Product>Haley.Helpers</Product>
     <PackageId>Haley.Helpers</PackageId>
-    <Version>2.1.6.1</Version>
+    <Version>2.1.7</Version>
     <AssemblyName>Haley.Helpers</AssemblyName>
     <PackageProjectUrl>https://github.com/rmsmech/HaleyHelpers</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rmsmech/HaleyHelpers</RepositoryUrl>
@@ -60,7 +60,7 @@
 		</When>
 		<Otherwise>
 			<ItemGroup>
-				<PackageReference Include="Haley.Abstractions" Version="1.0.16.1" />
+				<PackageReference Include="Haley.Abstractions" Version="1.0.17" />
 			</ItemGroup>
 		</Otherwise>
 	</Choose>
@@ -75,7 +75,7 @@
     </When>
     <Otherwise>
      <ItemGroup>
-       <PackageReference Include="Haley.Extensions" Version="2.1.11" />
+       <PackageReference Include="Haley.Extensions" Version="2.1.12" />
 	 </ItemGroup>
     </Otherwise>
 </Choose>  
