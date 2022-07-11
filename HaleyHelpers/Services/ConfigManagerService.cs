@@ -15,284 +15,314 @@ namespace Haley.Services
 {
     public class ConfigManagerService : IConfigManager
     {
+        #region DELEGATES
+
         Func<IConfigInfo, string, string> PreSaveProcessor;
-        Func<IConfigInfo,string, string> PostLoadProcessor;
-        private object basePathObj = new object();
-        private string _basepath;
-        private ConcurrentDictionary<string, (IConfig config, IConfigInfo info)> _configs = new ConcurrentDictionary<string, (IConfig, IConfigInfo)>();
-        private ConcurrentDictionary<string, IConfigHandler> _handlers = new ConcurrentDictionary<string, IConfigHandler>();
+        Func<IConfigInfo, string, string> PostLoadProcessor;
+        Func<IConfig, string> ConfigSerializer;
+        Func<string, IConfig> ConfigDeserializer;
 
-        public ConfigManagerService() { }
+        #endregion
 
-        public string GetBasePath()
-        {
+        #region ATTRIBUTES
+        private const string DEFAULTEXTENSION = "json";
+        object basePathObj = new object();
+        string _basepath;
+        ConcurrentDictionary<string,ConfigVault> _configs = new ConcurrentDictionary<string, ConfigVault>();
+
+        #endregion
+
+        #region PROPERTIES
+        public bool UseCustomProcessors { get; set; }
+        public bool UseCustomSerializers { get; set; }
+        public string FileExtension { get; set; }
+        #endregion
+
+        #region EVENTS
+        public event EventHandler<string> ConfigSaved;
+        public event EventHandler<string> ConfigLoaded;
+        #endregion
+
+        #region CONSTRUCTORS
+        public ConfigManagerService() { 
+            UseCustomProcessors = true; 
+            UseCustomSerializers = false; 
+        }
+        #endregion
+
+        #region PUBLIC METHODS
+        public string GetBasePath() {
             return EnsureBasePath(true);
         }
-
-        public IEnumerable<IConfig> GetAllConfig()
-        {
-            return _configs.Values.Select(p => p.config);
+        public IEnumerable<IConfig> GetAllConfig() {
+            return _configs.Values.Select(p => p.Config);
         }
-
-        public IConfig GetConfig(string key)
-        {
-            if (_configs.TryGetValue(key, out var result))
-            {
-                return result.config;
+        public IConfig GetConfig(string key) {
+            if (_configs.TryGetValue(key?.ToLower(), out var result)) {
+                return result.Config;
             }
             return null;
         }
-
-        public IConfigInfo Register(IConfigInfo info, IConfig data)
-        {
-            if (info == null || string.IsNullOrWhiteSpace(info.Name))
-            {
-                throw new ArgumentException("Info and Info.Name cannot be empty.");
-            }
-
-            if (data == null)
-            {
-                throw new ArgumentException("Data cannot be null. Please provide a valid data to register");
-            }
-
-            if (_configs.ContainsKey(info.Name))
-            {
-                throw new ArgumentException($@"A config data with same name {info.Name} is already registered. Provide an unique value.");
-            }
-
-            RegisterInternal(info, data);
-            return info;
-        }
-
-        private bool LoadConfig(IConfigInfo info,out IConfig data)
-        {
-            data = null;
-            try
-            {
-                //When an item is registere, also try to load already saved data.
-                if (info.Handler != null)
-                {
-                    do
-                    {
-                        //Load the file from the location and 
-                        string finalPath = GetSavePath(info); //Load this file.
-                        if (!File.Exists(finalPath)) break;
-                        string contents = File.ReadAllText(finalPath);
-                        if (PostLoadProcessor != null) //this should be used by the config manager for any kind of encryption.
-                        {
-                            contents = PostLoadProcessor?.Invoke(info,contents);
-                        }
-
-                        data = contents.JsonDeserialize(info.ConfigType) as IConfig;
-                        var dataCopy = contents.JsonDeserialize(info.ConfigType) as IConfig;
-                        if (data == null || dataCopy == null) break; //If data is null, do not load.
-                        info.Handler.UpdateConfig(dataCopy); //This should be used by the model to update its internal state. So, send in the datacopy (so that even if the user changes/updates, this will not be considered).
-                        return true;
-                    } while (false);
-                }
-                return false;
-            }
-            catch (Exception ex)
-            {
-                return false;
-            }
-        }
-
-        private bool RegisterInternal(IConfigInfo info, IConfig data)
-        {
-            if (info.ConfigType == null) throw new ArgumentException("ConfigType of the IConfigInfo cannot be null. Please provide a valid type that implements IConfiguration");
-
-            if (_configs.TryAdd(info.Name, (data, info)))
-            {
-                if (LoadConfig(info, out var newData)) data = newData;
-                return true;
-            }
-            return false;
-        }
-
-        public IConfigInfo Register(string key, Type configurationType, IConfig data,IConfigHandler handler)
-        {
-            return Register(new ConfigInfo(key,handler).SetConfigType(configurationType), data);
-        }
-
-        public bool TryRegister(IConfigInfo info, IConfig data, out IConfigInfo resultInfo)
-        {
+        public bool TryRegister(IConfigInfo info, IConfig data,IConfigHandler handler, out IConfigInfo resultInfo) {
             resultInfo = null;
-            if (info == null || string.IsNullOrWhiteSpace(info.Name)) return false;
+            if (info == null || string.IsNullOrWhiteSpace(info?.Name) || handler == null || data == null) return false;
 
-            if (data == null) return false;
-
-            if (_configs.ContainsKey(info.Name))
-            {
-                _configs.TryGetValue(info.Name, out var existingRes);
-                resultInfo = existingRes.info;
+            if (_configs.TryGetValue(info?.Name?.ToLower(), out var vault)) {
+                //Already exists.
+                resultInfo = vault.Info;
+                //So just update the handler alone.
+                vault.Handler = handler; //Very important or else when we try to reuse new viewmodel, we would still reference old viewmodel
                 return false;
             }
 
-            if (!RegisterInternal(info,data)) return false;
+            if (!RegisterInternal(info, data, handler)) return false;
 
             resultInfo = info;
             return true;
         }
-        public bool TryRegister(string key, Type configurationType, IConfig data, IConfigHandler handler, out IConfigInfo resultInfo)
-        {
-            return TryRegister(new ConfigInfo(key, handler).SetConfigType(configurationType), data,out resultInfo);
+        public bool TryRegister(string key, Type configurationType, IConfig data, IConfigHandler handler, out IConfigInfo resultInfo) {
+            return TryRegister(new ConfigInfo(key.ToLower()).SetConfigType(configurationType), data,handler, out resultInfo);
+        }
+        public bool Save(string key) {
+            try {
+                if (_configs.TryGetValue(key.ToLower(), out var vault)) {
+                    //Save the config.
+                    if (SaveInternal(vault)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex) {
+                return false;
+            }
+        }
+        public void SaveAll() {
+            foreach (var vault in _configs.Values) {
+                try {
+                    SaveInternal(vault);
+                }
+                catch (Exception) {
+                    continue;
+                }
+            }
+        }
+        public string GetSavePath(IConfigInfo info) {
+            EnsureBasePath();
+
+            string finalPath = null;
+
+            if (!string.IsNullOrWhiteSpace(info?.StorageDirectory)) {
+                if (Path.IsPathRooted(info?.StorageDirectory)) {
+                    finalPath = info?.StorageDirectory;
+                }
+                else {
+                    finalPath = Path.Combine(_basepath, info?.StorageDirectory);
+                }
+            }
+
+            if (finalPath == null) finalPath = _basepath;
+
+            finalPath = Path.Combine(finalPath, $@"{info?.Name}.{(String.IsNullOrWhiteSpace(FileExtension)? DEFAULTEXTENSION : FileExtension)}"); //Attach extension.
+            return finalPath;
+        }
+        public void SetBasePath(string base_path) {
+            _basepath = base_path;
+            EnsureBasePath();
+        }
+        public void SetProcessors(Func<IConfigInfo, string, string> presave_processor, Func<IConfigInfo, string, string> postload_processor) {
+            PreSaveProcessor = presave_processor;
+            PostLoadProcessor = postload_processor;
+        }
+        public void SetSerializer(Func<IConfig, string> serializer, Func<string, IConfig> deserializer) {
+            ConfigSerializer = serializer;
+            ConfigDeserializer = deserializer;
+        }
+        public void LoadAllConfig() {
+            var _keys = _configs.Keys.ToList();
+            //During runtime, it just loads the data from basepath.
+            foreach (var key in _keys) {
+                LoadConfig(key);
+            }
+        }
+        public void LoadConfig(string key) {
+            if (_configs.TryGetValue(key.ToLower(), out var targetVault)) {
+                if (targetVault?.Info == null) return;
+                if (LoadConfig(targetVault, out var result)) {
+                    targetVault.Config = result.data;
+                    //Now notify the caller.
+                    targetVault.Handler.OnConfigLoaded(result.dataCopy); //This should be used by the model to update its internal state. So, send in the datacopy (so that even if the user changes/updates, this will not be considered).
+
+                    //UpdateConfig(targetRes.info.Name.ToLower(), result);  //use the original data here so we dont' modify it.
+                    ////targetRes.config = result.data;                    //targetRes.config = result.data;
+                    ////After we update our cache with the value, we inform  the client about the loaded changes.
+                }
+            }
+        }
+        public void ResetConfig(string key) {
+            if (_configs.TryGetValue(key.ToLower(), out var vault)) {
+                if (vault.Info == null) return;
+                if (ResetConfig(vault, out var newData)) {
+                    //UpdateConfig(key.ToLower(), newData);
+                    vault.Config = newData; 
+                    //targetRes.info.ChangeHandler.Invoke(ConfigStatus.Reset); //Just to avoid getting updated by the UpdateConfig method, we are sending in a new data.
+                }
+            }
         }
 
-        public bool Save(string key)
-        {
+        public bool UpdateConfig(string key, IConfig config) {
             try {
-                if (_configs.TryGetValue(key, out var tosave)) {
-                    //Save the config.
-                    Save(tosave.info, tosave.config);
-                    return true;
+                if (_configs.TryGetValue(key.ToLower(), out var vault)) {
+                    //Dont' directly update the value of a value tuple (as it is VALUE tuple and not REFERENCE)
+                    if (vault.Info == null) return false;
+                    if (config.GetType() == vault.Info.ConfigType) {
+                        //only types matches, then we udpate
+                        vault.Config = config; //Since this is reference type, we directly change. (not a tupel)
+                        //if(_configs.TryUpdate(key.ToLower(), (config, res.info), res)) {
+                        //    return true;
+                        //}
+                        return true;
+                    }
                 }
                 return false;
             }
             catch (Exception) {
-
                 return false;
             }
         }
+        #endregion
 
-        public void SaveAll()
-        {
-            foreach (var tosave in _configs.Values) {
-                Save(tosave.info, tosave.config);
+        #region PRIVATE METHODS
+        private bool LoadConfig(ConfigVault vault, out (IConfig data,IConfig dataCopy) config) {
+            config = (null,null);
+            try {
+                if (vault.Info == null) return false;
+                //When an item is registere, also try to load already saved data.
+                do {
+                    //Load the file from the location and 
+                    string finalPath = GetSavePath(vault.Info); //Load this file.
+                    if (!File.Exists(finalPath)) break;
+                    string contents = File.ReadAllText(finalPath);
+                    if (PostLoadProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
+                    {
+                        contents = PostLoadProcessor?.Invoke(vault.Info, contents);
+                    }
+
+                    IConfig newData = null,copyData = null;
+                    if (UseCustomSerializers && ConfigDeserializer != null) {
+                        newData = ConfigDeserializer.Invoke(contents);
+                        copyData = ConfigDeserializer.Invoke(contents);
+                    }
+                    else {
+                        newData = contents.JsonDeserialize(vault.Info.ConfigType) as IConfig;
+                        copyData = contents.JsonDeserialize(vault.Info.ConfigType) as IConfig;
+                    }
+                    //Data and datacopy both will have two different unique ids.
+                    config = (newData,copyData);
+                    if (newData == null) break; //If data is null, do not load.
+                    return true;
+                } while (false);
+                return false;
+            }
+            catch (Exception ex) {
+                return false;
             }
         }
+        private bool RegisterInternal(IConfigInfo info, IConfig data,IConfigHandler handler) {
+            if (info?.ConfigType == null) throw new ArgumentException("ConfigType of the IConfigInfo cannot be null. Please provide a valid type that implements IConfiguration");
+            if (info?.Name == null) {
+                throw new ArgumentException("Config Name cannot be null. Please provide a valid name which will be used as the key");
+            }
+            //If already registered, 
+            if (_configs.TryGetValue(info.Name.ToLower(),out var existVault)) {
+                existVault.Handler = handler; //Only change the handler.
+                return false;
+            }
 
-        private string EnsureBasePath(bool createDir = true)
-        {
-            lock (basePathObj)
-            {
-                if (string.IsNullOrWhiteSpace(_basepath))
-                {
+            var vault = new ConfigVault() { Handler = handler, Config = data, Info = info };
+
+            if (_configs.TryAdd(info?.Name.ToLower(),vault )) {
+                if (LoadConfig(vault, out var result)) {
+                    //On fresh register we need not inform the 
+                    //Update the config
+                    UpdateConfig(info.Name.ToLower(), result.data);
+                    handler.OnConfigLoaded(result.dataCopy);
+                }
+                return true;
+            }
+            return false;
+        }
+        private string EnsureBasePath(bool createDir = true) {
+            lock (basePathObj) {
+                if (string.IsNullOrWhiteSpace(_basepath)) {
                     //Use the EXE base path.
                     UriBuilder uri = new UriBuilder(Assembly.GetExecutingAssembly().CodeBase);
                     string path = Uri.UnescapeDataString(uri.Path);
                     _basepath = Path.Combine(Path.GetDirectoryName(path), "Configurations");
                 }
             }
-            if (!Directory.Exists(_basepath) && createDir)
-            {
+            if (!Directory.Exists(_basepath) && createDir) {
                 Directory.CreateDirectory(_basepath);
             }
             return _basepath;
         }
 
-        public string GetSavePath(IConfigInfo info)
-        {
-            EnsureBasePath();
-
-            string finalPath = null;
-
-            if (!string.IsNullOrWhiteSpace(info.StorageDirectory))
-            {
-                if (Path.IsPathRooted(info.StorageDirectory))
-                {
-                    finalPath = info.StorageDirectory;
+        private bool SaveInternal(ConfigVault vault) {
+            try {
+                //First call the handler.
+                if (vault.Handler != null) {
+                    var updatedConfig = vault.Config;
+                    vault.Handler.OnConfigSaving(ref updatedConfig); //This should save any in-memory cache data.
+                    if (updatedConfig != null) { 
+                    vault.Config = updatedConfig; //Also save the internal info, so that we can fetch later
+                    }
                 }
-                else
-                {
-                    finalPath = Path.Combine(_basepath, info.StorageDirectory);
+
+                string finalPath = GetSavePath(vault.Info);
+                string _json = String.Empty;
+
+                if (UseCustomSerializers && ConfigSerializer != null) {
+                    _json = ConfigSerializer.Invoke(vault.Config);
                 }
-            }
-
-            if (finalPath == null) finalPath = _basepath;
-
-            finalPath = Path.Combine(finalPath, info.Name + ".json"); //Attach extension.
-            return finalPath;
-        }
-
-        private void Save(IConfigInfo info, IConfig data)
-        {
-            //First call the handler.
-            if (info.Handler != null)
-            {
-                info.Handler.SaveConfig(ref data); //This should save any in-memory cache data.
-            }
-
-            string finalPath = GetSavePath(info);
-            var _json = data.ToJson();
-            string tosaveJson = _json;
-
-            if (PreSaveProcessor != null) //this should be used by the config manager for any kind of encryption.
-            {
-                tosaveJson = PreSaveProcessor?.Invoke(info, _json);
-            }
-
-            using (FileStream fs = File.Create(finalPath))
-            {
-                byte[] fileinfo = new UTF8Encoding(true).GetBytes(tosaveJson);
-                fs.Write(fileinfo, 0, fileinfo.Length);
-            }
-        }
-
-
-        public void SetBasePath(string base_path)
-        {
-            _basepath = base_path;
-            EnsureBasePath();
-        }
-
-        public void SetProcessors(Func<IConfigInfo,string, string> presave_processor, Func<IConfigInfo,string, string> postload_processor)
-        {
-            PreSaveProcessor = presave_processor;
-            PostLoadProcessor = postload_processor;
-        }
-
-        public void LoadAllConfig()
-        {
-            var _keys = _configs.Keys.ToList();
-            //During runtime, it just loads the data from basepath.
-            foreach (var key in _keys)
-            {
-                LoadConfig(key);
-            }
-        }
-
-        public void LoadConfig(string key)
-        {
-            if (_configs.TryGetValue(key, out var targetRes))
-            {
-                if (LoadConfig(targetRes.info, out var newData))
-                {
-                    targetRes.config = newData;
+                else {
+                    _json = vault.Config.ToJson(); //Use internal extension method
                 }
-            }
-        }
+                string tosaveJson = _json;
 
-        public void ResetConfig(string key)
-        {
-            if (_configs.TryGetValue(key, out var targetRes))
-            {
-                if (ResetConfig(targetRes.info, out var newData))
+                if (PreSaveProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
                 {
-                    targetRes.config = newData;
+                    tosaveJson = PreSaveProcessor?.Invoke(vault.Info, _json);
                 }
+
+                using (FileStream fs = File.Create(finalPath)) {
+                    byte[] fileinfo = new UTF8Encoding(true).GetBytes(tosaveJson);
+                    fs.Write(fileinfo, 0, fileinfo.Length);
+                }
+                return true;
+            }
+            catch (Exception ex) {
+                return false;
             }
         }
-        private bool ResetConfig(IConfigInfo info, out IConfig data)
-        {
+        private bool ResetConfig(ConfigVault vault, out IConfig data) {
             data = null;
-            try
-            {
+            try {
+                if (vault.Info == null) return false;
                 //When an item is registere, also try to load already saved data.
-                if (info.Handler != null)
-                {
-                    var defData = info.Handler.PrepareDefault();
+                if (vault.Handler != null) {
+                    var defData = vault.Handler.PrepareDefaultConfig();
                     if (defData == null) return false;
                     data = defData; //Use this as the default data.
-                    info.Handler.UpdateConfig(info.Handler.PrepareDefault()); //Just to avoid getting updated by the UpdateConfig method, we are sending in a new data.
                     return true;
                 }
                 return false;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 return false;
             }
         }
+
+        
+        #endregion
     }
 }
