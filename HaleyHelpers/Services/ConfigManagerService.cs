@@ -271,8 +271,7 @@ namespace Haley.Services
             try {
                 //First call the handler.
                 if (vault.Handler != null) {
-                    var updatedConfig = vault.Config;
-                    vault.Handler.OnConfigSaving(ref updatedConfig); //This should save any in-memory cache data.
+                    var updatedConfig = vault.Handler.GetUpdatedConfig();
                     if (updatedConfig != null) { 
                     vault.Config = updatedConfig; //Also save the internal info, so that we can fetch later
                     }
