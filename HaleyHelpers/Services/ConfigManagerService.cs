@@ -65,14 +65,15 @@ namespace Haley.Services
         }
         public bool TryRegister(IConfigInfo info, IConfig data,IConfigHandler handler, out IConfigInfo resultInfo) {
             resultInfo = null;
-            if (info == null || string.IsNullOrWhiteSpace(info?.Name) || handler == null || data == null) return false;
+            if (info == null || string.IsNullOrWhiteSpace(info?.Name) || data == null) return false;
+            //If the handler is null, then it's totally fine, we can always register handler later.
 
             if (_configs.TryGetValue(info?.Name?.ToLower(), out var vault)) {
-                //Already exists.
-                resultInfo = vault.Info;
-                //So just update the handler alone.
-                vault.Handler = handler; //Very important or else when we try to reuse new viewmodel, we would still reference old viewmodel
-                return false;
+                resultInfo = vault.Info; //assign the registered information
+                if (vault.Handler == null) {
+                    vault.Handler = handler;
+                }
+                return false; //already reigstered the key.
             }
 
             if (!RegisterInternal(info, data, handler)) return false;
@@ -83,6 +84,16 @@ namespace Haley.Services
         public bool TryRegister(string key, Type configurationType, IConfig data, IConfigHandler handler, out IConfigInfo resultInfo) {
             return TryRegister(new ConfigInfo(key.ToLower()).SetConfigType(configurationType), data,handler, out resultInfo);
         }
+
+        public bool TryUpdateHandler(string key, IConfigHandler handler) {
+            if (_configs.TryGetValue(key, out var vault)) {
+                if (vault == null) return false;
+                vault.Handler = handler; //Set this as the handler.
+                return true;
+            }
+            return false;
+        }
+
         public bool Save(string key) {
             try {
                 if (_configs.TryGetValue(key.ToLower(), out var vault)) {
@@ -138,24 +149,21 @@ namespace Haley.Services
             ConfigSerializer = serializer;
             ConfigDeserializer = deserializer;
         }
-        public void LoadAllConfig() {
+        public async Task LoadAllConfig() {
             var _keys = _configs.Keys.ToList();
             //During runtime, it just loads the data from basepath.
             foreach (var key in _keys) {
-                LoadConfig(key);
+                await LoadConfig(key);
             }
         }
-        public void LoadConfig(string key) {
+        public async Task LoadConfig(string key) {
             if (_configs.TryGetValue(key.ToLower(), out var targetVault)) {
                 if (targetVault?.Info == null) return;
                 if (LoadConfig(targetVault, out var result)) {
                     targetVault.Config = result.data;
-                    //Now notify the caller.
-                    targetVault.Handler.OnConfigLoaded(result.dataCopy); //This should be used by the model to update its internal state. So, send in the datacopy (so that even if the user changes/updates, this will not be considered).
 
-                    //UpdateConfig(targetRes.info.Name.ToLower(), result);  //use the original data here so we dont' modify it.
-                    ////targetRes.config = result.data;                    //targetRes.config = result.data;
-                    ////After we update our cache with the value, we inform  the client about the loaded changes.
+                    if (targetVault.Handler == null) return;
+                    await targetVault.Handler.OnConfigLoaded(result.dataCopy);
                 }
             }
         }
@@ -320,8 +328,6 @@ namespace Haley.Services
                 return false;
             }
         }
-
-        
         #endregion
     }
 }
