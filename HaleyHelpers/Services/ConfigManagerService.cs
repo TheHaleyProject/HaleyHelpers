@@ -86,7 +86,7 @@ namespace Haley.Services
         }
 
         public bool TryUpdateHandler(string key, IConfigHandler handler) {
-            if (_configs.TryGetValue(key, out var vault)) {
+            if (_configs.TryGetValue(key.ToLower(), out var vault)) {
                 if (vault == null) return false;
                 vault.Handler = handler; //Set this as the handler.
                 return true;
