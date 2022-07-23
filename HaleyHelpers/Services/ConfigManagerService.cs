@@ -37,11 +37,12 @@ namespace Haley.Services
         public bool UseCustomSerializers { get; set; }
         public string FileExtension { get; set; }
         public bool UpdateHandlerOnFailedRegistration { get; set; }
+        public bool ReloadConfigOnHandlerUpdate { get; set; }
         #endregion
 
         #region EVENTS
-        public event EventHandler<string> ConfigSaved;
-        public event EventHandler<string> ConfigLoaded;
+        //public event EventHandler<string> ConfigSaved;
+        //public event EventHandler<string> ConfigLoaded;
         #endregion
 
         #region CONSTRUCTORS
@@ -49,6 +50,7 @@ namespace Haley.Services
             UseCustomProcessors = true; 
             UseCustomSerializers = false;
             UpdateHandlerOnFailedRegistration = false;
+            ReloadConfigOnHandlerUpdate = false;
         }
         #endregion
 
@@ -70,14 +72,6 @@ namespace Haley.Services
             if (info == null || string.IsNullOrWhiteSpace(info?.Name) || data == null) return false;
             //If the handler is null, then it's totally fine, we can always register handler later.
 
-            if (_configs.TryGetValue(info?.Name?.ToLower(), out var vault)) {
-                resultInfo = vault.Info; //assign the registered information
-                if (vault.Handler == null) {
-                    vault.Handler = handler;
-                }
-                return false; //already reigstered the key.
-            }
-
             if (!RegisterInternal(info, data, handler)) return false;
 
             resultInfo = info;
@@ -86,16 +80,18 @@ namespace Haley.Services
         public bool TryRegister(string key, Type configurationType, IConfig data, IConfigHandler handler, out IConfigInfo resultInfo) {
             return TryRegister(new ConfigInfo(key.ToLower()).SetConfigType(configurationType), data,handler, out resultInfo);
         }
-
         public bool TryUpdateHandler(string key, IConfigHandler handler) {
             if (_configs.TryGetValue(key.ToLower(), out var vault)) {
                 if (vault == null) return false;
                 vault.Handler = handler; //Set this as the handler.
+
+                if (ReloadConfigOnHandlerUpdate) {
+                   return LoadConfigInternal(vault).Result;
+                }
                 return true;
             }
             return false;
         }
-
         public bool Save(string key) {
             try {
                 if (_configs.TryGetValue(key.ToLower(), out var vault)) {
@@ -158,29 +154,47 @@ namespace Haley.Services
                 await LoadConfig(key);
             }
         }
-        public async Task LoadConfig(string key) {
+        public async Task<bool> LoadConfig(string key) {
             if (_configs.TryGetValue(key.ToLower(), out var targetVault)) {
-                if (targetVault?.Info == null) return;
-                if (LoadConfig(targetVault, out var result)) {
-                    targetVault.Config = result.data;
-
-                    if (targetVault.Handler == null) return;
-                    await targetVault.Handler.OnConfigLoaded(result.dataCopy);
-                }
+                if (targetVault?.Info == null) return false;
+               return await LoadConfigInternal(targetVault);
             }
+            return false;
         }
-        public void ResetConfig(string key) {
+        public async Task ResetConfig(string key) {
             if (_configs.TryGetValue(key.ToLower(), out var vault)) {
                 if (vault.Info == null) return;
-                if (ResetConfig(vault, out var newData)) {
+                if (ResetConfigInternal(vault, out var newData)) {
                     //UpdateConfig(key.ToLower(), newData);
                     vault.Config = newData; 
+                    //Whenever the config is reset, also inform clients
+                    await vault.Handler?.OnConfigLoaded(newData);
                     //targetRes.info.ChangeHandler.Invoke(ConfigStatus.Reset); //Just to avoid getting updated by the UpdateConfig method, we are sending in a new data.
                 }
             }
         }
+        public async Task<bool> UpdateConfig(string key, IConfig config) {
+            try {
+                if (string.IsNullOrWhiteSpace(key)) return false;
 
-        public bool UpdateConfig(string key, IConfig config) {
+                if (UpdateConfigInternal(key, config)) {
+
+                    //also notify handler that the config has been updated.
+                    if (_configs.TryGetValue(key.ToLower(),out var vault)){
+                        await vault.Handler?.OnConfigLoaded(config);
+                    }
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception) {
+                return false;
+            }
+        }
+        #endregion
+
+        #region PRIVATE METHODS
+        private bool UpdateConfigInternal(string key, IConfig config) {
             try {
                 if (_configs.TryGetValue(key.ToLower(), out var vault)) {
                     //Dont' directly update the value of a value tuple (as it is VALUE tuple and not REFERENCE)
@@ -200,10 +214,7 @@ namespace Haley.Services
                 return false;
             }
         }
-        #endregion
-
-        #region PRIVATE METHODS
-        private bool LoadConfig(ConfigVault vault, out (IConfig data,IConfig dataCopy) config) {
+        private bool LoadConfigInternal(ConfigVault vault, out (IConfig data,IConfig dataCopy) config) {
             config = (null,null);
             try {
                 if (vault.Info == null) return false;
@@ -238,27 +249,54 @@ namespace Haley.Services
                 return false;
             }
         }
+        private async Task<bool> LoadConfigInternal(ConfigVault vault) {
+            try {
+                if (vault == null) return false;
+                if (LoadConfigInternal(vault, out var result)) {
+                    //On fresh register we need not inform the 
+                    //Update the config
+                    UpdateConfigInternal(vault.Info.Name.ToLower(), result.data); //just update, donot notify client.
+                    if (vault.Handler != null) {
+                        await vault.Handler.OnConfigLoaded(result.dataCopy);
+                    }
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception) {
+                return false;
+            }
+        }
         private bool RegisterInternal(IConfigInfo info, IConfig data,IConfigHandler handler) {
             if (info?.ConfigType == null) throw new ArgumentException("ConfigType of the IConfigInfo cannot be null. Please provide a valid type that implements IConfiguration");
             if (info?.Name == null) {
                 throw new ArgumentException("Config Name cannot be null. Please provide a valid name which will be used as the key");
             }
             //If already registered, 
-            if (_configs.TryGetValue(info.Name.ToLower(),out var existVault)) {
-                existVault.Handler = handler; //Only change the handler.
-                return false;
+            if (_configs.TryGetValue(info?.Name?.ToLower(), out var existingVault)) {
+                bool handlerUpdated = false;
+                if (existingVault.Handler == null) {
+                    existingVault.Handler = handler;
+                    handlerUpdated = true;
+                }
+
+                if (UpdateHandlerOnFailedRegistration) {
+                    existingVault.Handler = handler; //We update the handler,regardless of any other constraint.
+                    handlerUpdated = true;
+                }
+
+                if (handlerUpdated && ReloadConfigOnHandlerUpdate) {
+                    var loaded = LoadConfigInternal(existingVault).Result;
+                }
+
+                return false; //already reigstered the key.
             }
 
             var vault = new ConfigVault() { Handler = handler, Config = data, Info = info };
 
             if (_configs.TryAdd(info?.Name.ToLower(),vault )) {
-                if (LoadConfig(vault, out var result)) {
-                    //On fresh register we need not inform the 
-                    //Update the config
-                    UpdateConfig(info.Name.ToLower(), result.data);
-                    handler.OnConfigLoaded(result.dataCopy);
-                }
-                return true;
+                //Only when registering for first time, we call.
+                return LoadConfigInternal(vault).Result;
             }
             return false;
         }
@@ -276,7 +314,6 @@ namespace Haley.Services
             }
             return _basepath;
         }
-
         private bool SaveInternal(ConfigVault vault) {
             try {
                 //First call the handler.
@@ -313,7 +350,7 @@ namespace Haley.Services
                 return false;
             }
         }
-        private bool ResetConfig(ConfigVault vault, out IConfig data) {
+        private bool ResetConfigInternal(ConfigVault vault, out IConfig data) {
             data = null;
             try {
                 if (vault.Info == null) return false;
