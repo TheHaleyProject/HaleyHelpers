@@ -36,7 +36,6 @@ namespace Haley.Services
         public bool UseCustomProcessors { get; set; }
         public bool UseCustomSerializers { get; set; }
         public string FileExtension { get; set; }
-        public bool UpdateHandlerOnFailedRegistration { get; set; }
         public bool ReloadConfigOnHandlerUpdate { get; set; }
         #endregion
 
@@ -49,7 +48,6 @@ namespace Haley.Services
         public ConfigManagerService() { 
             UseCustomProcessors = true; 
             UseCustomSerializers = false;
-            UpdateHandlerOnFailedRegistration = false;
             ReloadConfigOnHandlerUpdate = false;
         }
         #endregion
@@ -67,18 +65,18 @@ namespace Haley.Services
             }
             return null;
         }
-        public bool TryRegister(IConfigInfo info, IConfig data,IConfigHandler handler, out IConfigInfo resultInfo) {
+        public bool TryRegister(IConfigInfo info, IConfig data,IConfigHandler handler, out IConfigInfo resultInfo, bool updateHandlerOnFailure = false) {
             resultInfo = null;
             if (info == null || string.IsNullOrWhiteSpace(info?.Name) || data == null) return false;
             //If the handler is null, then it's totally fine, we can always register handler later.
 
-            if (!RegisterInternal(info, data, handler)) return false;
+            if (!RegisterInternal(info, data, handler, updateHandlerOnFailure)) return false;
 
             resultInfo = info;
             return true;
         }
-        public bool TryRegister(string key, Type configurationType, IConfig data, IConfigHandler handler, out IConfigInfo resultInfo) {
-            return TryRegister(new ConfigInfo(key.ToLower()).SetConfigType(configurationType), data,handler, out resultInfo);
+        public bool TryRegister(string key, Type configurationType, IConfig data, IConfigHandler handler, out IConfigInfo resultInfo, bool updateHandlerOnFailure = false) {
+            return TryRegister(new ConfigInfo(key.ToLower()).SetConfigType(configurationType), data,handler, out resultInfo, updateHandlerOnFailure);
         }
         public bool TryUpdateHandler(string key, IConfigHandler handler) {
             if (_configs.TryGetValue(key.ToLower(), out var vault)) {
@@ -267,7 +265,7 @@ namespace Haley.Services
                 return false;
             }
         }
-        private bool RegisterInternal(IConfigInfo info, IConfig data,IConfigHandler handler) {
+        private bool RegisterInternal(IConfigInfo info, IConfig data,IConfigHandler handler,bool updateHandlerOnFailure) {
             if (info?.ConfigType == null) throw new ArgumentException("ConfigType of the IConfigInfo cannot be null. Please provide a valid type that implements IConfiguration");
             if (info?.Name == null) {
                 throw new ArgumentException("Config Name cannot be null. Please provide a valid name which will be used as the key");
@@ -280,7 +278,7 @@ namespace Haley.Services
                     handlerUpdated = true;
                 }
 
-                if (UpdateHandlerOnFailedRegistration) {
+                if (updateHandlerOnFailure) {
                     existingVault.Handler = handler; //We update the handler,regardless of any other constraint.
                     handlerUpdated = true;
                 }
