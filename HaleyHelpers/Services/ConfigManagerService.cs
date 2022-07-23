@@ -36,6 +36,7 @@ namespace Haley.Services
         public bool UseCustomProcessors { get; set; }
         public bool UseCustomSerializers { get; set; }
         public string FileExtension { get; set; }
+        public bool UpdateHandlerOnFailedRegistration { get; set; }
         #endregion
 
         #region EVENTS
@@ -46,7 +47,8 @@ namespace Haley.Services
         #region CONSTRUCTORS
         public ConfigManagerService() { 
             UseCustomProcessors = true; 
-            UseCustomSerializers = false; 
+            UseCustomSerializers = false;
+            UpdateHandlerOnFailedRegistration = false;
         }
         #endregion
 
