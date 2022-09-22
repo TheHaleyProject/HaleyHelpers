@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Haley.Utils
 {
@@ -21,6 +22,12 @@ namespace Haley.Utils
             var _byte = new byte[length];
             using (var rng = new RNGCryptoServiceProvider()) { rng.GetNonZeroBytes(_byte); } // Generating random bytes of the provided length values.
             return (length, _byte);
+        }
+
+        public static string GetRandomAlphaNumericValue(int number_of_bits = 128) {
+            var randomBase64Value = GetRandomString(number_of_bits);
+            Regex pattern = new Regex($@"[/+=]");
+            return pattern.Replace(randomBase64Value, "l");
         }
         #endregion
 
@@ -85,9 +92,9 @@ namespace Haley.Utils
         }
         public static int CalculateBytes(int number_of_bits)
         {
-            var length = (int)Math.Round(number_of_bits / 8.0, MidpointRounding.AwayFromZero);
-            if (length < 8) length = 8;
-            return length;
+            var byte_length = (int)Math.Round(number_of_bits / 8.0, MidpointRounding.AwayFromZero);
+            if (byte_length < 1) byte_length = 1; //We need atleast one byte of data
+            return byte_length;
         }
         #endregion
 
