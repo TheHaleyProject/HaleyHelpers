@@ -23,6 +23,7 @@
 	  <IncludeSymbols>true</IncludeSymbols>
 	  <SymbolPackageFormat>snupkg</SymbolPackageFormat>
 	  <PackageReleaseNotes>Naming conventions changed. All camel cases changed as Pascal case</PackageReleaseNotes>
+	  <Configurations>Debug;Release;Debug_Net6</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
@@ -75,7 +76,7 @@
     </When>
     <Otherwise>
      <ItemGroup>
-       <PackageReference Include="Haley.Extensions" Version="2.1.12" />
+       <PackageReference Include="Haley.Extensions" Version="2.1.13-beta1" />
 	 </ItemGroup>
     </Otherwise>
 </Choose>  

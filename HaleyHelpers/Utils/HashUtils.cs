@@ -23,12 +23,6 @@ namespace Haley.Utils
             using (var rng = new RNGCryptoServiceProvider()) { rng.GetNonZeroBytes(_byte); } // Generating random bytes of the provided length values.
             return (length, _byte);
         }
-
-        public static string GetRandomAlphaNumericValue(int number_of_bits = 128) {
-            var randomBase64Value = GetRandomString(number_of_bits);
-            Regex pattern = new Regex($@"[/+=]");
-            return pattern.Replace(randomBase64Value, "l");
-        }
         #endregion
 
         #region HashPasswords

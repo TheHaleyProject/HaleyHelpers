@@ -233,8 +233,8 @@ namespace Haley.Services
                         copyData = ConfigDeserializer.Invoke(contents);
                     }
                     else {
-                        newData = contents.JsonDeserialize(vault.Info.ConfigType) as IConfig;
-                        copyData = contents.JsonDeserialize(vault.Info.ConfigType) as IConfig;
+                        newData = contents.FromJson(vault.Info.ConfigType) as IConfig;
+                        copyData = contents.FromJson(vault.Info.ConfigType) as IConfig;
                     }
                     //Data and datacopy both will have two different unique ids.
                     config = (newData,copyData);
