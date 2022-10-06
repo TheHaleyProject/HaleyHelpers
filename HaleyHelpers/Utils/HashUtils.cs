@@ -77,7 +77,7 @@ namespace Haley.Utils
             }
             catch (Exception ex)
             {
-                throw ex;
+                throw;
             }
             finally
             {
