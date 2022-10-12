@@ -10,6 +10,7 @@ using Haley.Abstractions;
 using System.IO;
 using System.Reflection;
 using Haley.Utils;
+using System.Diagnostics;
 
 namespace Haley.Services
 {
@@ -37,6 +38,7 @@ namespace Haley.Services
         public bool UseCustomSerializers { get; set; }
         public string FileExtension { get; set; }
         public bool ReloadConfigOnHandlerUpdate { get; set; }
+        public ExceptionHandling ExceptionMode { get; private set; }
         #endregion
 
         #region EVENTS
@@ -49,10 +51,16 @@ namespace Haley.Services
             UseCustomProcessors = true; 
             UseCustomSerializers = false;
             ReloadConfigOnHandlerUpdate = false;
+            ExceptionMode = ExceptionHandling.OutputDiagnostics;
         }
         #endregion
 
         #region PUBLIC METHODS
+
+        public IConfigManager WithExceptionHandling(ExceptionHandling exceptionHandling) {
+            ExceptionMode = exceptionHandling;
+            return this;
+        }
         public string GetBasePath() {
             return EnsureBasePath(true);
         }
@@ -101,7 +109,7 @@ namespace Haley.Services
                 return false;
             }
             catch (Exception ex) {
-                return false;
+                return HandleException(ex);
             }
         }
         public void SaveAll() {
@@ -109,8 +117,14 @@ namespace Haley.Services
                 try {
                     SaveInternal(vault);
                 }
-                catch (Exception) {
-                    continue;
+                catch (Exception ex) {
+                    switch (ExceptionMode) {
+                        case ExceptionHandling.Throw:
+                            throw;
+                        default:
+                            Debug.WriteLine(ex);
+                            continue;
+                    }
                 }
             }
         }
@@ -185,8 +199,8 @@ namespace Haley.Services
                 }
                 return false;
             }
-            catch (Exception) {
-                return false;
+            catch (Exception ex) {
+                return HandleException(ex);
             }
         }
         #endregion
@@ -208,8 +222,8 @@ namespace Haley.Services
                 }
                 return false;
             }
-            catch (Exception) {
-                return false;
+            catch (Exception ex) {
+                return HandleException(ex);
             }
         }
         private bool LoadConfigInternal(ConfigVault vault, out (IConfig data,IConfig dataCopy) config) {
@@ -244,7 +258,7 @@ namespace Haley.Services
                 return false;
             }
             catch (Exception ex) {
-                return false;
+                return HandleException(ex);
             }
         }
         private async Task<bool> LoadConfigInternal(ConfigVault vault) {
@@ -261,8 +275,8 @@ namespace Haley.Services
                 }
                 return false;
             }
-            catch (Exception) {
-                return false;
+            catch (Exception ex) {
+                return HandleException(ex);
             }
         }
         private bool RegisterInternal(IConfigInfo info, IConfig data,IConfigHandler handler,bool updateHandlerOnFailure) {
@@ -316,7 +330,7 @@ namespace Haley.Services
             try {
                 //First call the handler.
                 if (vault.Handler != null) {
-                    var updatedConfig = vault.Handler.GetUpdatedConfig();
+                    var updatedConfig = vault.Handler.OnConfigSaving();
                     if (updatedConfig != null) { 
                     vault.Config = updatedConfig; //Also save the internal info, so that we can fetch later
                     }
@@ -345,7 +359,7 @@ namespace Haley.Services
                 return true;
             }
             catch (Exception ex) {
-                return false;
+                return HandleException(ex);
             }
         }
         private bool ResetConfigInternal(ConfigVault vault, out IConfig data) {
@@ -362,7 +376,17 @@ namespace Haley.Services
                 return false;
             }
             catch (Exception ex) {
-                return false;
+                return HandleException(ex);
+            }
+        }
+
+        private bool HandleException(Exception ex) {
+            switch (ExceptionMode) {
+                case ExceptionHandling.Throw:
+                    throw ex;
+                default:
+                    Debug.WriteLine(ex);
+                    return false;
             }
         }
         #endregion
