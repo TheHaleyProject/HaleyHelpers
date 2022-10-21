@@ -11,6 +11,7 @@ using System.IO;
 using System.Reflection;
 using Haley.Utils;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Haley.Services
 {
@@ -128,6 +129,50 @@ namespace Haley.Services
                 }
             }
         }
+
+        private bool DeleteInternal(ConfigVault vault) {
+            try {
+
+                string finalPath = GetSavePath(vault.Info);
+                if (File.Exists(finalPath)) {
+                    File.Delete(finalPath);
+                }
+               
+                return true;
+            } catch (Exception ex) {
+                return HandleException(ex);
+            }
+        }
+
+        public void DeletaAllFiles() {
+            foreach (var vault in _configs.Values) {
+                try {
+                    DeleteInternal(vault);
+                } catch (Exception ex) {
+                    switch (ExceptionMode) {
+                        case ExceptionHandling.Throw:
+                            throw;
+                        default:
+                            Debug.WriteLine(ex);
+                            continue;
+                    }
+                }
+            }
+        }
+        public bool DeleteFile(string key) {
+            try {
+                if (_configs.TryGetValue(key.ToLower(), out var vault)) {
+                    //Save the config.
+                    if (DeleteInternal(vault)) {
+                        return true;
+                    }
+                }
+                return false;
+            } catch (Exception ex) {
+                return HandleException(ex);
+            }
+        }
+
         public string GetSavePath(IConfigInfo info) {
             EnsureBasePath();
 
