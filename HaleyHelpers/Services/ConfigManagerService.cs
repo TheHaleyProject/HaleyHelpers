@@ -361,7 +361,7 @@ namespace Haley.Services
             lock (basePathObj) {
                 if (string.IsNullOrWhiteSpace(_basepath)) {
                     //Use the EXE base path.
-                    UriBuilder uri = new UriBuilder(Assembly.GetExecutingAssembly().CodeBase);
+                    UriBuilder uri = new UriBuilder(Assembly.GetExecutingAssembly().GetName()?.CodeBase);
                     string path = Uri.UnescapeDataString(uri.Path);
                     _basepath = Path.Combine(Path.GetDirectoryName(path), "Configurations");
                 }
