@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31019.35
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33103.184
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HaleyHelpers", "HaleyHelpers\HaleyHelpers.csproj", "{2CD886C6-A1B4-4D36-9834-CB8F9FA871BB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleTest", "__Test\ConsoleTest\ConsoleTest.csproj", "{C4C1E822-7056-4F67-BAA2-ABDBC8FB4B2B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{2CD886C6-A1B4-4D36-9834-CB8F9FA871BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2CD886C6-A1B4-4D36-9834-CB8F9FA871BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2CD886C6-A1B4-4D36-9834-CB8F9FA871BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4C1E822-7056-4F67-BAA2-ABDBC8FB4B2B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4C1E822-7056-4F67-BAA2-ABDBC8FB4B2B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4C1E822-7056-4F67-BAA2-ABDBC8FB4B2B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4C1E822-7056-4F67-BAA2-ABDBC8FB4B2B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

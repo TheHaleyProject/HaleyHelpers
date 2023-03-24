@@ -12,7 +12,7 @@ namespace Haley.Utils
     {
         static Random rand = new Random();
         static Random rand2 = new Random();
-        static char zero = Convert.ToChar(0);
+        static char zero = '0';  // zero will return null
 
         public static bool GetRandomBool()
         {
@@ -44,12 +44,13 @@ namespace Haley.Utils
  
             var timecomp = GetTimeComponent().ToString(); // min 4 / max 5 digits 
             var randomvalue = (GetRandomNumber().ToString() + GetRandomNumber().ToString()); //min 6 / max 10 digits
-
+            var result = timecomp + randomvalue;
             switch (padmissing) {
                 case true:
-                    return long.Parse((timecomp + randomvalue).PadRight(15,zero));
+                    
+                    return long.Parse(result.PadRight(15,zero));
                 default:
-                    return long.Parse(timecomp + randomvalue);
+                    return long.Parse(result);
             }
         }
 
