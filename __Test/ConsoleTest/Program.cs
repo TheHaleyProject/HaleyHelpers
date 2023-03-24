@@ -4,7 +4,7 @@ using Haley.Utils;
 IEnumerable<long> GetIds(int count = 5) {
     int i = count;
     while (i > 0) {
-        yield return GeneralUtils.GetRandomBigInt(true);
+        yield return RandomUtils.GetBigInt(true);
         i--;
     }
 }

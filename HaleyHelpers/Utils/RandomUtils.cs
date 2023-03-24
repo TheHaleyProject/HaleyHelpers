@@ -8,13 +8,13 @@ using System.Data;
 
 namespace Haley.Utils
 {
-    public static class GeneralUtils
+    public static class RandomUtils
     {
         static Random rand = new Random();
         static Random rand2 = new Random();
         static char zero = '0';  // zero will return null
 
-        public static bool GetRandomBool()
+        public static bool GetBool()
         {
             if (rand.Next(0, 2) == 0) //Number will be betweewn 0 and 1.
             {
@@ -25,21 +25,21 @@ namespace Haley.Utils
                 return false;
             }
         }
-        public static int GetRandomZeroOne()
+        public static int GetZeroOne()
         {
             return rand.Next(0, 2);
         }
 
-        public static string GetRandomString(int number_of_bits = 1024) {
+        public static string GetString(int number_of_bits = 1024) {
             return Convert.ToBase64String(HashUtils.GetRandomBytes(number_of_bits).bytes);
         }
 
 
-        public static long GetRandomBigInt(DateTime time, bool padmissing = false) {
+        public static long GetBigInt(DateTime time, bool padmissing = false) {
             //limit at 15 characters (we get a minimum of 10 to a maximum of 15 characters)
 
             var timecomp = GetTimeComponent(time).ToString(); // min 4 / max 5 digits 
-            var randomvalue = (GetRandomNumber().ToString() + GetRandomNumber().ToString()); //min 6 / max 10 digits
+            var randomvalue = (GetNumber().ToString() + GetNumber().ToString()); //min 6 / max 10 digits
             var result = timecomp + randomvalue;
             switch (padmissing) {
                 case true:
@@ -54,8 +54,8 @@ namespace Haley.Utils
         /// </summary>
         /// <param name="padmissing">Will ensure that </param>
         /// <returns></returns>
-        public static long GetRandomBigInt(bool padmissing = false) {
-            return GetRandomBigInt(DateTime.UtcNow,padmissing); 
+        public static long GetBigInt(bool padmissing = false) {
+            return GetBigInt(DateTime.UtcNow,padmissing); 
         }
 
         static long GetTimeComponent(DateTime time) {
@@ -65,7 +65,7 @@ namespace Haley.Utils
             return addedTime; 
         }
 
-        static long GetRandomNumber() {
+        static long GetNumber() {
             return rand2.Next(111, 99999); //Random 3-5 digit number
         }
     }
