@@ -34,31 +34,34 @@ namespace Haley.Utils
             return Convert.ToBase64String(HashUtils.GetRandomBytes(number_of_bits).bytes);
         }
 
+
+        public static long GetRandomBigInt(DateTime time, bool padmissing = false) {
+            //limit at 15 characters (we get a minimum of 10 to a maximum of 15 characters)
+
+            var timecomp = GetTimeComponent(time).ToString(); // min 4 / max 5 digits 
+            var randomvalue = (GetRandomNumber().ToString() + GetRandomNumber().ToString()); //min 6 / max 10 digits
+            var result = timecomp + randomvalue;
+            switch (padmissing) {
+                case true:
+                    return long.Parse(result.PadRight(15, zero));
+                default:
+                    return long.Parse(result);
+            }
+        }
+
         /// <summary>
         /// Will give a random time based number with 15 digits (first 4 or 5 digit corresponds to the UTC time) rest are random.
         /// </summary>
         /// <param name="padmissing">Will ensure that </param>
         /// <returns></returns>
         public static long GetRandomBigInt(bool padmissing = false) {
-            //limit at 15 characters (we get a minimum of 10 to a maximum of 15 characters)
- 
-            var timecomp = GetTimeComponent().ToString(); // min 4 / max 5 digits 
-            var randomvalue = (GetRandomNumber().ToString() + GetRandomNumber().ToString()); //min 6 / max 10 digits
-            var result = timecomp + randomvalue;
-            switch (padmissing) {
-                case true:
-                    
-                    return long.Parse(result.PadRight(15,zero));
-                default:
-                    return long.Parse(result);
-            }
+            return GetRandomBigInt(DateTime.UtcNow,padmissing); 
         }
 
-        static long GetTimeComponent() {
+        static long GetTimeComponent(DateTime time) {
             //Maximum possibility 5 digits (until the year 9999.. probably humanity won't be alive until then..)
-            var utcTime = DateTime.UtcNow;
             //Add all components.
-            var addedTime = utcTime.Year + utcTime.Month + utcTime.Day + utcTime.Hour + utcTime.Minute + utcTime.Second + utcTime.Millisecond;
+            var addedTime = time.Year + time.Month + time.Day + time.Hour + time.Minute + time.Second + time.Millisecond;
             return addedTime; 
         }
 
