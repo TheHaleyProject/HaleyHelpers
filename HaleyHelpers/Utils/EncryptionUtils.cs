@@ -133,7 +133,7 @@ namespace Haley.Utils
             {
                 try
                 {
-                    return (EncryptionHelper.AES.execute(to_encrypt, _key, _iv, true), _key, _iv);
+                    return (EncryptionHelper.AES.Execute(to_encrypt, _key, _iv, true), _key, _iv);
                 }
                 catch (Exception)
                 {
@@ -203,7 +203,7 @@ namespace Haley.Utils
                         _iv = Encoding.ASCII.GetBytes(iv);
                     }
 
-                    return EncryptionHelper.AES.execute(to_decrypt, _key, _iv, false);
+                    return EncryptionHelper.AES.Execute(to_decrypt, _key, _iv, false);
                 }
                 catch (Exception ex)
                 {
@@ -217,7 +217,7 @@ namespace Haley.Utils
             {
                 try
                 {
-                    return EncryptionHelper.RSA.getXMLKeyPair();
+                    return EncryptionHelper.RSA.GetXMLKeyPair();
                 }
                 catch (Exception)
                 {
@@ -256,7 +256,7 @@ namespace Haley.Utils
             {
                 try
                 {
-                    return EncryptionHelper.RSA.execute(to_encrypt, public_key, true);
+                    return EncryptionHelper.RSA.Execute(to_encrypt, public_key, true);
                 }
                 catch (Exception)
                 {
@@ -281,7 +281,7 @@ namespace Haley.Utils
             {
                 try
                 {
-                    return EncryptionHelper.RSA.execute(to_decrypt, private_key, false);
+                    return EncryptionHelper.RSA.Execute(to_decrypt, private_key, false);
                 }
                 catch (Exception)
                 {
@@ -295,7 +295,7 @@ namespace Haley.Utils
             {
                 try
                 {
-                    EncryptionHelper.XML.sign(input_doc, out output_doc, _private_key);
+                    EncryptionHelper.XML.Sign(input_doc, out output_doc, _private_key);
                 }
                 catch (Exception)
                 {
@@ -306,7 +306,7 @@ namespace Haley.Utils
             {
                 try
                 {
-                    EncryptionHelper.XML.verify(input_doc, _public_key, out _status);
+                    EncryptionHelper.XML.Verify(input_doc, _public_key, out _status);
                 }
                 catch (Exception)
                 {

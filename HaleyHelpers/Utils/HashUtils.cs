@@ -12,10 +12,7 @@ namespace Haley.Utils
     public static class HashUtils
     {
         #region GetRandom
-        public static string GetRandomString(int number_of_bits = 1024)
-        {
-            return Convert.ToBase64String(GetRandomBytes(number_of_bits).bytes);
-        }
+        
         public static (int length, byte[] bytes) GetRandomBytes(int number_of_bits)
         {
             var length = CalculateBytes(number_of_bits);

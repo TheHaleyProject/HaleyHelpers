@@ -13,7 +13,7 @@ namespace Haley.Helpers.Internal
     {
         internal sealed class AES
         {
-            public static byte[] execute(byte[] to_execute, byte[] key, byte[] iv, bool is_encrypt)
+            public static byte[] Execute(byte[] to_execute, byte[] key, byte[] iv, bool is_encrypt)
             {
                 try
                 {
@@ -62,7 +62,7 @@ namespace Haley.Helpers.Internal
         }
         internal sealed class RSA
         {
-            public static (string public_key, string private_key) getXMLKeyPair()
+            public static (string public_key, string private_key) GetXMLKeyPair()
             {
                 try
                 {
@@ -75,7 +75,7 @@ namespace Haley.Helpers.Internal
                 }
             }
 
-            public static byte[] execute(byte[] to_execute, string _key, bool is_encrypt)
+            public static byte[] Execute(byte[] to_execute, string _key, bool is_encrypt)
             {
                 //IMPORTANT: PUBLIC KEY IS FOR ENCRYPTION AND PRIVATE KEY IS FOR DECRYPTION.
                 var rsa_provider = new RSACryptoServiceProvider();
@@ -104,7 +104,7 @@ namespace Haley.Helpers.Internal
         }
         internal sealed class XML
         {
-            public static void sign(XmlDocument input_doc, out XmlDocument output_doc, string private_key)
+            public static void Sign(XmlDocument input_doc, out XmlDocument output_doc, string private_key)
             {
                 try
                 {
@@ -116,7 +116,7 @@ namespace Haley.Helpers.Internal
                     CryptXML.SignedXml _temporary_xml = new CryptXML.SignedXml(input_doc);
                     _temporary_xml.SigningKey = rsa_provider;
 
-                    //Reference is indicating what to sign inside the XML. In our case, we need the whole xml document to sign. So set the URI as ""
+                    //Reference is indicating what to Sign inside the XML. In our case, we need the whole xml document to Sign. So set the URI as ""
                     CryptXML.Reference _signing_reference = new CryptXML.Reference();
                     _signing_reference.Uri = "";
 
@@ -144,7 +144,7 @@ namespace Haley.Helpers.Internal
                     throw ex;
                 }
             }
-            public static void verify(XmlDocument input_doc, string public_key, out bool _status)
+            public static void Verify(XmlDocument input_doc, string public_key, out bool _status)
             {
                 try
                 {
