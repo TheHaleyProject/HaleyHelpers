@@ -11,6 +11,7 @@ using System.Security;
 using System.Runtime.InteropServices;
 using System.Xml;
 using Haley.Helpers.Internal;
+using Haley.Models;
 
 namespace Haley.Utils
 {
@@ -61,7 +62,7 @@ namespace Haley.Utils
             {
                 try
                 {
-                    byte[] _key = HashUtils.GetRandomBytes(key_bits).bytes; //Get random key
+                    byte[] _key = HashUtils.GetRandomBytes(key_bits).bytes; //Get random Key
                     byte[] _iv = HashUtils.GetRandomBytes(salt_bits).bytes; //Get random salt
 
                     return Encrypt(to_encrypt, _key, _iv);
@@ -129,7 +130,7 @@ namespace Haley.Utils
                     throw;
                 }
             }
-            public static (byte[] value, byte[] key, byte[] salt) Encrypt(byte[] to_encrypt, byte[] _key, byte[] _iv) //Thisis just a proxy method for the internal class
+            public static (byte[] value, byte[] key, byte[] salt) Encrypt(byte[] to_encrypt, byte[] _key, byte[] _iv) //Thisis just a proxy Method for the internal class
             {
                 try
                 {
@@ -156,7 +157,7 @@ namespace Haley.Utils
             {
                 try
                 {
-                    //key, iv, todecrypt: all should be in base 64 format. do a validation to check if the inputs are in base 64 format.
+                    //Key, iv, todecrypt: all should be in base 64 format. do a validation to check if the inputs are in base 64 format.
 
                     if (!file.Exists) throw new ArgumentNullException("File doesn't exist");
                     byte[] to_decrypt = File.ReadAllBytes(file.FullName);
@@ -226,7 +227,7 @@ namespace Haley.Utils
             }
             public static (string value, string public_key, string private_key) Encrypt(string to_encrypt)
             {
-                //User doesn't have any key
+                //User doesn't have any Key
                 try
                 {
                     var kvp = GetXMLKeyPair();
@@ -239,7 +240,7 @@ namespace Haley.Utils
             }
             public static string Encrypt(string to_encrypt, string public_key)
             {
-                //We assume that the public key and private key are already with the software
+                //We assume that the public Key and private Key are already with the software
                 try
                 {
                     //Asymmetric keys are in xml format.
@@ -312,6 +313,26 @@ namespace Haley.Utils
                 {
                     throw;
                 }
+            }
+        }
+        public sealed class K2017SE
+        {
+            public static (string value, List<K2Sequence> key) Execute(string input_text, List<K2Sequence> sequences)
+            {
+                if (string.IsNullOrEmpty(input_text) || sequences == null || sequences.Count == 0) return (null, null);
+                string to_execute = input_text;
+                foreach (var _seq in sequences)
+                {
+                    to_execute = Execute(to_execute, _seq);
+                }
+
+                List<K2Sequence> key = sequences.ChangeDirection(true).ToList();
+                return (to_execute, key);
+            }
+
+            public static string Execute(string input_text, K2Sequence sequence)
+            {
+                return EncryptionHelper.K2017SE.Execute(input_text, sequence);
             }
         }
     }

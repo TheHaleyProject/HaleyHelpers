@@ -15,14 +15,14 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Product>Haley.Helpers</Product>
     <PackageId>Haley.Helpers</PackageId>
-    <Version>2.1.9.4</Version>
+    <Version>2.1.10</Version>
     <AssemblyName>Haley.Helpers</AssemblyName>
     <PackageProjectUrl>https://github.com/rmsmech/HaleyHelpers</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rmsmech/HaleyHelpers</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 	  <IncludeSymbols>true</IncludeSymbols>
 	  <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-	  <PackageReleaseNotes>Naming conventions changed. All camel cases changed as Pascal case</PackageReleaseNotes>
+	  <PackageReleaseNotes>Added K2017SE encryption methods (rotate and swap)</PackageReleaseNotes>
 	  <Configurations>Debug;Release;Debug_Net6</Configurations>
   </PropertyGroup>
 

@@ -222,11 +222,11 @@ namespace Haley.Services
             if (_configs.TryGetValue(key.ToLower(), out var vault)) {
                 if (vault.Info == null) return;
                 if (ResetConfigInternal(vault, out var newData)) {
-                    //UpdateConfig(key.ToLower(), newData);
+                    //UpdateConfig(Key.ToLower(), newData);
                     vault.Config = newData; 
                     //Whenever the config is reset, also inform clients
                     await vault.Handler?.OnConfigLoaded(newData);
-                    //targetRes.info.ChangeHandler.Invoke(ConfigStatus.Reset); //Just to avoid getting updated by the UpdateConfig method, we are sending in a new data.
+                    //targetRes.info.ChangeHandler.Invoke(ConfigStatus.Reset); //Just to avoid getting updated by the UpdateConfig Method, we are sending in a new data.
                 }
             }
         }
@@ -259,7 +259,7 @@ namespace Haley.Services
                     if (config.GetType() == vault.Info.ConfigType) {
                         //only types matches, then we udpate
                         vault.Config = config; //Since this is reference type, we directly change. (not a tupel)
-                        //if(_configs.TryUpdate(key.ToLower(), (config, res.info), res)) {
+                        //if(_configs.TryUpdate(Key.ToLower(), (config, res.info), res)) {
                         //    return true;
                         //}
                         return true;
@@ -327,7 +327,7 @@ namespace Haley.Services
         private bool RegisterInternal(IConfigInfo info, IConfig data,IConfigHandler handler,bool updateHandlerOnFailure) {
             if (info?.ConfigType == null) throw new ArgumentException("ConfigType of the IConfigInfo cannot be null. Please provide a valid type that implements IConfiguration");
             if (info?.Name == null) {
-                throw new ArgumentException("Config Name cannot be null. Please provide a valid name which will be used as the key");
+                throw new ArgumentException("Config Name cannot be null. Please provide a valid name which will be used as the Key");
             }
             //If already registered, 
             if (_configs.TryGetValue(info?.Name?.ToLower(), out var existingVault)) {
@@ -346,7 +346,7 @@ namespace Haley.Services
                     var loaded = LoadConfigInternal(existingVault).Result;
                 }
 
-                return false; //already reigstered the key.
+                return false; //already reigstered the Key.
             }
 
             var vault = new ConfigVault() { Handler = handler, Config = data, Info = info };
@@ -388,7 +388,7 @@ namespace Haley.Services
                     _json = ConfigSerializer.Invoke(vault.Config);
                 }
                 else {
-                    _json = vault.Config.ToJson(); //Use internal extension method
+                    _json = vault.Config.ToJson(); //Use internal extension Method
                 }
                 string tosaveJson = _json;
 

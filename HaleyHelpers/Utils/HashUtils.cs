@@ -30,7 +30,7 @@ namespace Haley.Utils
         public static (string salt, string value) GetHashWithSalt(string to_hash, int salt_bits = 1024, int value_bits = 1024)
         {
             var value_length = CalculateBytes(value_bits);
-            byte[] _salt = GetRandomBytes(salt_bits).bytes;//Getting random bytes of specified length to use as a key.
+            byte[] _salt = GetRandomBytes(salt_bits).bytes;//Getting random bytes of specified length to use as a Key.
             byte[] _value = null;
             using (var _rfcProcessor = new Rfc2898DeriveBytes(to_hash, _salt)) // Hashing the provided string, with the random generated or user provided bytes.
             {
@@ -90,6 +90,12 @@ namespace Haley.Utils
         #endregion
 
         #region ComputeHashes
+        public static Guid DeterministicGUID(string input)
+        {
+            var inputbytes = Encoding.ASCII.GetBytes(input);
+            return new Guid(ComputeHash(inputbytes, HashMethod.MD5));
+        }
+
         public static string ComputeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true)
         {
             MemoryStream ms = new MemoryStream();
