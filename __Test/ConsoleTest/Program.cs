@@ -4,12 +4,12 @@ using Haley.Utils;
 IEnumerable<long> GetIds(int count = 5) {
     int i = count;
     while (i > 0) {
-        yield return RandomUtils.GetBigInt(true);
+        yield return RandomUtils.GetBigInt(12);
         i--;
     }
 }
 
-foreach (var id in GetIds(1500)) {
+foreach (var id in GetIds(12)) {
     Console.WriteLine(id);
 }
 

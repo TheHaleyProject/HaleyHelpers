@@ -15,14 +15,14 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Product>Haley.Helpers</Product>
     <PackageId>Haley.Helpers</PackageId>
-    <Version>2.1.11</Version>
+    <Version>2.1.11.2</Version>
     <AssemblyName>Haley.Helpers</AssemblyName>
     <PackageProjectUrl>https://github.com/rmsmech/HaleyHelpers</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rmsmech/HaleyHelpers</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 	  <IncludeSymbols>true</IncludeSymbols>
 	  <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-	  <PackageReleaseNotes>Added K2017SE encryption methods (rotate and swap)</PackageReleaseNotes>
+	  <PackageReleaseNotes>For RandomUtils.GetBigInt() added length limitation</PackageReleaseNotes>
 	  <Configurations>Debug;Release;Debug_Net6</Configurations>
   </PropertyGroup>
 
@@ -48,6 +48,10 @@
     <PackageReference Include="System.Management" Version="7.0.1" />
     <PackageReference Include="System.Security.Cryptography.Xml" Version="7.0.1" />
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Attributes\" />
   </ItemGroup>
 
 <Import Project="$(SolutionDir)ProjectReferences_$(SolutionName).txt" Condition="Exists('$(SolutionDir)ProjectReferences_$(SolutionName).txt')" />
@@ -76,7 +80,7 @@
     </When>
     <Otherwise>
      <ItemGroup>
-       <PackageReference Include="Haley.Extensions" Version="2.1.17" />
+       <PackageReference Include="Haley.Extensions" Version="2.1.17.4" />
 	 </ItemGroup>
     </Otherwise>
 </Choose>  
