@@ -76,7 +76,7 @@ namespace Haley.Utils
         }
 
         static long GetNumber() {
-            return rand2.Next(111, 999); //3 digit random
+            return rand2.Next(100, 999); //3 digit random
         }
     }
 }
