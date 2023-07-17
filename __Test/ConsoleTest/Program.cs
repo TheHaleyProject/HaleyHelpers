@@ -5,7 +5,7 @@ using Haley.Enums;
 IEnumerable<long> GetIds(int count = 5) {
     int i = count;
     while (i > 0) {
-        yield return RandomUtils.GetBigInt(8,TimeComp.Day);
+        yield return RandomUtils.GetBigInt(11);
         i--;
     }
 }
