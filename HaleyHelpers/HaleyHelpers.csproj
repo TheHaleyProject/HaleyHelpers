@@ -15,7 +15,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Product>Haley.Helpers</Product>
     <PackageId>Haley.Helpers</PackageId>
-    <Version>2.1.11.5</Version>
+    <Version>2.1.11.3</Version>
     <AssemblyName>Haley.Helpers</AssemblyName>
     <PackageProjectUrl>https://github.com/rmsmech/HaleyHelpers</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rmsmech/HaleyHelpers</RepositoryUrl>
