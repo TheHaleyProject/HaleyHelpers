@@ -1,10 +1,11 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using Haley.Utils;
+using Haley.Enums;
 
 IEnumerable<long> GetIds(int count = 5) {
     int i = count;
     while (i > 0) {
-        yield return RandomUtils.GetBigInt(11);
+        yield return RandomUtils.GetBigInt(8,TimeComp.Day);
         i--;
     }
 }

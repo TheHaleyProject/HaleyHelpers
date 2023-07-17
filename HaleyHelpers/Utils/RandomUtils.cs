@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Reflection;
 using System.Data;
 using Haley.Internal;
+using Haley.Enums;
 
 namespace Haley.Utils
 {
@@ -31,6 +32,24 @@ namespace Haley.Utils
         }
 
         /// <summary>
+        /// Will give a random time based number
+        /// </summary>
+        /// <param name="length">Max length should be 17</param>
+        /// <returns></returns>
+        public static long GetBigInt(int length = 9, TimeComp comp = TimeComp.Hour, int divider = 3) {
+            return GetBigInt(DateTime.UtcNow, length, comp);
+        }
+
+        /// <summary>
+        /// Will give a random time based number
+        /// </summary>
+        /// <param name="length">Max length should be 17</param>
+        /// <returns></returns>
+        public static long GetBigInt(int length = 9) {
+            return GetBigInt(length);
+        }
+
+        /// <summary>
         /// Get Big Integer
         /// </summary>
         /// <param name="time">Date time</param>
@@ -38,14 +57,32 @@ namespace Haley.Utils
         /// <returns></returns>
         public static long GetBigInt(DateTime time, int length = 9) {
 
+            return GetBigInt(time, length);
+        }
+
+        /// <summary>
+        /// Get Big Integer
+        /// </summary>
+        /// <param name="time">Date time</param>
+        /// <param name="length">max length should be 17. min length is 8</param>
+        /// <returns></returns>
+        public static long GetBigInt(DateTime time, int length, TimeComp comp, int comp_divider = 3) {
+
             //Maximum for a 64 bit long is 2^ 64 -1 (18446744073709551615) 20 digit. So, a safer side is 19 digit
             //limit at 15 characters (we get a minimum of 10 to a maximum of 15 characters)
 
-            if (length < 9) length = 9;
+            if (length < 9) {
+                //For hour, we cannot go below 9
+                if (comp == TimeComp.Day) {
+                    if (length < 5) length = 5;
+                } else {
+                    length = 9;
+                }
+            }
             if (length > 17) length = 17;
 
             //From below two we get a 16-17 characters.
-            var timecomp = GetTimeComponent(time).ToString(); //
+            var timecomp = GetTimeComponent(time,comp, comp_divider).ToString(); //
             var randomvalue = ConcatRandomNumbers(5); //Gives 10 to 15 possible digits
             var result = timecomp + randomvalue;
             if (result.Length < length) {
@@ -55,24 +92,19 @@ namespace Haley.Utils
             }
         }
 
-        /// <summary>
-        /// Will give a random time based number
-        /// </summary>
-        /// <param name="length">Max length should be 17</param>
-        /// <returns></returns>
-        public static long GetBigInt(int length = 9) {
-            return GetBigInt(DateTime.UtcNow, length);
-        }
+        public static long GetTimeComponent(DateTime time, TimeComp comp = TimeComp.Hour, int comp_divider = 3) {
 
-        public static long GetTimeComponent(DateTime time, int hour_divider = 3) {
-
-            if (hour_divider < 3) hour_divider = 3; //We get the hours completed between start and end date and divide the value by divider.
-            if (hour_divider > 96) hour_divider = 96;
+            if (comp_divider < 3) comp_divider = 3; 
+            if (comp_divider > 36) comp_divider = 36;
 
             //Add all components.
             var ts = time - Constants.B_EPOCH;
-            return Convert.ToInt64(ts.TotalHours / hour_divider);
-    }
+
+            if (comp == TimeComp.Day) {
+                return Convert.ToInt64(ts.TotalDays / comp_divider);
+            }
+            return Convert.ToInt64(ts.TotalHours / comp_divider);
+        }
 
         static long GetRandomNumber() {
             return rand2.Next(10, 999); //2-3 digit random
