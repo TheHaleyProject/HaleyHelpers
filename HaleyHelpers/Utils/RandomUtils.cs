@@ -36,8 +36,8 @@ namespace Haley.Utils
         /// </summary>
         /// <param name="length">Max length should be 17</param>
         /// <returns></returns>
-        public static long GetBigInt(int length = 9, TimeComp comp = TimeComp.Hour, int divider = 3) {
-            return GetBigInt(DateTime.UtcNow, length, comp);
+        public static long GetBigInt(int length = 9) {
+            return GetBigInt(length,TimeComp.Hour);
         }
 
         /// <summary>
@@ -45,8 +45,8 @@ namespace Haley.Utils
         /// </summary>
         /// <param name="length">Max length should be 17</param>
         /// <returns></returns>
-        public static long GetBigInt(int length = 9) {
-            return GetBigInt(length);
+        public static long GetBigInt(int length, TimeComp comp, int comp_divider = 3) {
+            return GetBigInt(DateTime.UtcNow, length, comp, comp_divider);
         }
 
         /// <summary>
@@ -55,18 +55,7 @@ namespace Haley.Utils
         /// <param name="time">Date time</param>
         /// <param name="length">max length should be 17. min length is 8</param>
         /// <returns></returns>
-        public static long GetBigInt(DateTime time, int length = 9) {
-
-            return GetBigInt(time, length);
-        }
-
-        /// <summary>
-        /// Get Big Integer
-        /// </summary>
-        /// <param name="time">Date time</param>
-        /// <param name="length">max length should be 17. min length is 8</param>
-        /// <returns></returns>
-        public static long GetBigInt(DateTime time, int length, TimeComp comp, int comp_divider = 3) {
+        public static long GetBigInt(DateTime time, int length =9, TimeComp comp = TimeComp.Hour, int comp_divider = 3) {
 
             //Maximum for a 64 bit long is 2^ 64 -1 (18446744073709551615) 20 digit. So, a safer side is 19 digit
             //limit at 15 characters (we get a minimum of 10 to a maximum of 15 characters)
