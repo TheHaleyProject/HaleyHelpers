@@ -65,7 +65,7 @@
 		</When>
 		<Otherwise>
 			<ItemGroup>
-				<PackageReference Include="Haley.Abstractions" Version="1.0.20" />
+				<PackageReference Include="Haley.Abstractions" Version="1.0.19" />
 			</ItemGroup>
 		</Otherwise>
 	</Choose>
