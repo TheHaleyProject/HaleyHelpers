@@ -74,19 +74,45 @@ namespace Haley.Services
             }
             return null;
         }
-        public bool TryRegister(IConfigInfo info, IConfig data,IConfigHandler handler, out IConfigInfo resultInfo, bool updateHandlerOnFailure = false) {
-            resultInfo = null;
-            if (info == null || string.IsNullOrWhiteSpace(info?.Name) || data == null) return false;
+
+        public bool TryRegister(IConfigInfo info, IConfig data, IConfigHandler handler, bool updateHandlerOnFailure) {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
             //If the handler is null, then it's totally fine, we can always register handler later.
-
             if (!RegisterInternal(info, data, handler, updateHandlerOnFailure)) return false;
-
-            resultInfo = info;
             return true;
         }
-        public bool TryRegister(string key, Type configurationType, IConfig data, IConfigHandler handler, out IConfigInfo resultInfo, bool updateHandlerOnFailure = false) {
-            return TryRegister(new ConfigInfo(key.ToLower()).SetConfigType(configurationType), data,handler, out resultInfo, updateHandlerOnFailure);
+        public bool TryRegister(IConfig data, IConfigHandler handler, out IConfigInfo resultInfo, bool updateHandlerOnFailure = false) {
+            return TryRegister(RandomUtils.GetString(124).SanitizeJWT(),data,handler, out resultInfo,updateHandlerOnFailure);
         }
+        public bool TryRegister(string key, IConfig data, IConfigHandler handler, out IConfigInfo resultInfo, bool updateHandlerOnFailure = false) {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            resultInfo = new ConfigInfo(key.ToLower()).SetConfigType(data.GetType());
+            return TryRegister(resultInfo, data, handler, updateHandlerOnFailure);
+        }
+        public bool TryRegister<ConfigType>(IConfigHandler handler, out IConfigInfo resultInfo, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
+            return TryRegister<ConfigType>(RandomUtils.GetString(124).SanitizeJWT(), handler, out resultInfo, updateHandlerOnFailure);
+        }
+        public bool TryRegister<ConfigType>(string key, IConfigHandler handler, out IConfigInfo resultInfo, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
+            resultInfo = new ConfigInfo(key.ToLower()).SetConfigType(typeof(ConfigType));
+            return TryRegister(resultInfo, null, handler, updateHandlerOnFailure);
+        }
+
+        public bool TryRegister(string key, IConfig data, IConfigHandler handler, bool updateHandlerOnFailure = false) {
+            return TryRegister(key,data,handler,out _,updateHandlerOnFailure);
+        }
+
+        public bool TryRegister(IConfig data, IConfigHandler handler, bool updateHandlerOnFailure = false) {
+            return TryRegister(data, handler, out _, updateHandlerOnFailure);
+        }
+
+        public bool TryRegister<ConfigType>(string key, IConfigHandler handler, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
+            return TryRegister<ConfigType>(key,handler,out _,updateHandlerOnFailure); 
+        }
+
+        public bool TryRegister<ConfigType>(IConfigHandler handler, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
+           return TryRegister<ConfigType>(handler,out _,updateHandlerOnFailure);
+        }
+
         public bool TryUpdateHandler(string key, IConfigHandler handler) {
             if (_configs.TryGetValue(key.ToLower(), out var vault)) {
                 if (vault == null) return false;
@@ -325,12 +351,22 @@ namespace Haley.Services
             }
         }
         private bool RegisterInternal(IConfigInfo info, IConfig data,IConfigHandler handler,bool updateHandlerOnFailure) {
+            if (info == null) throw new ArgumentNullException("ConfigInfo");
             if (info?.ConfigType == null) throw new ArgumentException("ConfigType of the IConfigInfo cannot be null. Please provide a valid type that implements IConfiguration");
             if (info?.Name == null) {
                 throw new ArgumentException("Config Name cannot be null. Please provide a valid name which will be used as the Key");
             }
+
+            IConfig initialData = data;
+            if (initialData == null) {
+                initialData = handler?.PrepareDefaultConfig();
+            }
+
             //If already registered, 
             if (_configs.TryGetValue(info?.Name?.ToLower(), out var existingVault)) {
+
+                //sometimes, we use an object as handler and during runtime, this specific object might be disposed. In this case, the handler will become null and thus will throw exception if we tried to use that.
+                //in case of dynamically creating an object and loading them, it will beneficial if an existing handler is null, it should be replaced with the new handler of same object type.
                 bool handlerUpdated = false;
                 if (existingVault.Handler == null) {
                     existingVault.Handler = handler;
@@ -349,7 +385,7 @@ namespace Haley.Services
                 return false; //already reigstered the Key.
             }
 
-            var vault = new ConfigVault() { Handler = handler, Config = data, Info = info };
+            var vault = new ConfigVault() { Handler = handler, Config = initialData, Info = info };
 
             if (_configs.TryAdd(info?.Name.ToLower(),vault )) {
                 //Only when registering for first time, we call.
@@ -434,6 +470,7 @@ namespace Haley.Services
                     return false;
             }
         }
+
         #endregion
     }
 }
