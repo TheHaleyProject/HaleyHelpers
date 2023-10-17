@@ -15,19 +15,19 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Product>Haley.Helpers</Product>
     <PackageId>Haley.Helpers</PackageId>
-    <Version>2.1.12.3</Version>
+    <Version>2.1.12.4</Version>
     <AssemblyName>Haley.Helpers</AssemblyName>
     <PackageProjectUrl>https://github.com/rmsmech/HaleyHelpers</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rmsmech/HaleyHelpers</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 	  <IncludeSymbols>true</IncludeSymbols>
 	  <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-	  <PackageReleaseNotes>For RandomUtils.GetBigInt() added length limitation</PackageReleaseNotes>
+	  <PackageReleaseNotes>Added new functions to AssemblyUtils</PackageReleaseNotes>
 	  <Configurations>Debug;Release;Debug_Net6</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Scripts\Notes.txt" />
+   <!--  <None Remove="Scripts\Notes.txt" /> -->
     <None Include="..\Haley.png">
       <Pack>True</Pack>
       <PackagePath></PackagePath>
@@ -80,7 +80,7 @@
     </When>
     <Otherwise>
      <ItemGroup>
-       <PackageReference Include="Haley.Extensions" Version="2.1.18.2" />
+       <PackageReference Include="Haley.Extensions" Version="2.1.18.4" />
 	 </ItemGroup>
     </Otherwise>
 </Choose>  

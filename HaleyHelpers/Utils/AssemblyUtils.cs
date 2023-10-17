@@ -62,6 +62,25 @@ namespace Haley.Utils
             }
         }
 
+        public static string GetBasePath (Assembly assembly = null) {
+            try {
+                if (assembly == null) assembly = Assembly.GetEntryAssembly(); //Not the executing assembly. Let us focus on the entry assembly or the main assembly.
+                return new Uri(assembly.Location).LocalPath;
+            } catch (Exception) {
+                return null;
+            }
+        }
+
+        public static string GetBaseDirectory(Assembly assembly = null) {
+            try {
+                var filepath = GetBasePath(assembly);
+                if (filepath == null) return null;
+                return Path.GetDirectoryName(filepath);
+            } catch (Exception) {
+                return null;
+            }
+        }
+
         public static string GetInfo<T>(Assembly assembly = null) where T : Attribute {
             try {
                 if (assembly == null) assembly = Assembly.GetEntryAssembly();
