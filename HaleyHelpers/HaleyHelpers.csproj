@@ -27,6 +27,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Services\ConfigManagerService-OLD.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
    <!--  <None Remove="Scripts\Notes.txt" /> -->
     <None Include="..\Haley.png">
       <Pack>True</Pack>

@@ -3,7 +3,6 @@ using Haley.Enums;
 using Haley.Models;
 using Haley.Utils;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -18,10 +17,10 @@ namespace Haley.Services {
 
         #region DELEGATES
 
-        private Func<string, IConfig> _cfgDeserializer;
-        private Func<IConfig, string> _cfgSerializer;
-        private Func<Type, string, string> _postLoadProcessor;
-        private Func<Type, string, string> _preLoadProcessor;
+        private Func<string, IConfig> ConfigDeserializer;
+        private Func<IConfig, string> ConfigSerializer;
+        private Func<IConfigRegisterInfo, string, string> PostLoadProcessor;
+        private Func<IConfigRegisterInfo, string, string> PreSaveProcessor;
 
         #endregion DELEGATES
 
@@ -29,8 +28,8 @@ namespace Haley.Services {
 
         private const string DEFAULTEXTENSION = "json";
         private string _basepath;
-        private object _basePathObj = new object();
-        private ConcurrentDictionary<string, ConfigWrapper> _configs = new ConcurrentDictionary<string, ConfigWrapper>();
+        private ConcurrentDictionary<string, ConcurrentDictionary<string, ConfigHandlerWrapper>> _configs = new ConcurrentDictionary<string, ConcurrentDictionary<string, ConfigHandlerWrapper>>();
+        private object basePathObj = new object();
 
         #endregion ATTRIBUTES
 
@@ -38,9 +37,9 @@ namespace Haley.Services {
 
         public ExceptionHandling ExceptionMode { get; private set; }
         public string FileExtension { get; set; }
+        public bool ReloadConfigOnHandlerUpdate { get; set; }
         public bool UseCustomProcessors { get; set; }
         public bool UseCustomSerializers { get; set; }
-        public bool SaveWithFullName { get; set; }
 
         #endregion PROPERTIES
 
@@ -56,6 +55,7 @@ namespace Haley.Services {
         public ConfigManagerService() {
             UseCustomProcessors = true;
             UseCustomSerializers = false;
+            ReloadConfigOnHandlerUpdate = false;
             ExceptionMode = ExceptionHandling.OutputDiagnostics;
         }
 
@@ -108,28 +108,22 @@ namespace Haley.Services {
             return null;
         }
 
-        public string GetSavePath(ConfigWrapper info) {
+        public string GetSavePath(IConfigRegisterInfo info) {
             EnsureBasePath();
 
             string finalPath = null;
-            if (info == null) return null;
-            if (!string.IsNullOrWhiteSpace(info.StorageDirectory)) {
-                if (Path.IsPathRooted(info.StorageDirectory)) {
-                    finalPath = info.StorageDirectory;
+
+            if (!string.IsNullOrWhiteSpace(info?.StorageDirectory)) {
+                if (Path.IsPathRooted(info?.StorageDirectory)) {
+                    finalPath = info?.StorageDirectory;
                 } else {
-                    finalPath = Path.Combine(_basepath, info.StorageDirectory);
+                    finalPath = Path.Combine(_basepath, info?.StorageDirectory);
                 }
             }
 
             if (finalPath == null) finalPath = _basepath;
 
-            FileAttributes attr = File.GetAttributes(finalPath);
-            if (!File.GetAttributes(finalPath).HasFlag(FileAttributes.Directory)) {
-                finalPath = Path.GetDirectoryName(finalPath);
-            }
-
-            var filename = SaveWithFullName ? info.FullName : info.Name;
-            finalPath = Path.Combine(finalPath, $@"{filename}.{(String.IsNullOrWhiteSpace(FileExtension) ? DEFAULTEXTENSION : FileExtension)}"); //Attach extension.
+            finalPath = Path.Combine(finalPath, $@"{info?.Name}.{(String.IsNullOrWhiteSpace(FileExtension) ? DEFAULTEXTENSION : FileExtension)}"); //Attach extension.
             return finalPath;
         }
 
@@ -197,21 +191,60 @@ namespace Haley.Services {
             EnsureBasePath();
         }
 
-        public void SetProcessors(Func<Type, string, string> presave_processor, Func<Type, string, string> postload_processor) {
-            _preLoadProcessor = presave_processor;
-            _postLoadProcessor = postload_processor;
+        public void SetProcessors(Func<IConfigRegisterInfo, string, string> presave_processor, Func<IConfigRegisterInfo, string, string> postload_processor) {
+            PreSaveProcessor = presave_processor;
+            PostLoadProcessor = postload_processor;
         }
 
         public void SetSerializer(Func<IConfig, string> serializer, Func<string, IConfig> deserializer) {
-            _cfgSerializer = serializer;
-            _cfgDeserializer = deserializer;
+            ConfigSerializer = serializer;
+            ConfigDeserializer = deserializer;
         }
 
+        public bool TryRegister(IConfigRegisterInfo info, IConfig data, IConfigHandler handler, bool updateHandlerOnFailure) {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            //If the handler is null, then it's totally fine, we can always register handler later.
+            return RegisterInternal(info, data, handler, updateHandlerOnFailure).Result;
+        }
+
+        public bool TryRegister(IConfig data, IConfigHandler handler, out IConfigRegisterInfo resultInfo, bool updateHandlerOnFailure = false) {
+            return TryRegister(null, data, handler, out resultInfo, updateHandlerOnFailure);
+        }
+
+        public bool TryRegister(string key, IConfig data, IConfigHandler handler, out IConfigRegisterInfo resultInfo, bool updateHandlerOnFailure = false) {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            if (key == null) {
+                key = GetConfigInfoKey(data, handler);
+            }
+            resultInfo = new ConfigInfo(key.ToLower()).SetConfigType(data.GetType());
+            return TryRegister(resultInfo, data, handler, updateHandlerOnFailure);
+        }
+
+        public bool TryRegister<ConfigType>(IConfigHandler handler, out IConfigRegisterInfo resultInfo, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
+            //Instead of getting a name like random utils.. Try to generate the name out of the config type.
+
+            return TryRegister<ConfigType>(null, handler, out resultInfo, updateHandlerOnFailure);
+        }
+
+        public bool TryRegister<ConfigType>(string key, IConfigHandler handler, out IConfigRegisterInfo resultInfo, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
+            if (key == null) key = GetConfigInfoKey<ConfigType>(handler);
+            resultInfo = new ConfigInfo(key.ToLower()).SetConfigType(typeof(ConfigType));
+            return TryRegister(resultInfo, null, handler, updateHandlerOnFailure);
+        }
+
+        public bool TryRegister(string key, IConfig data, IConfigHandler handler, bool updateHandlerOnFailure = false) {
+            if (key == null) key = GetConfigInfoKey(data, handler);
+            return TryRegister(key, data, handler, out _, updateHandlerOnFailure);
+        }
 
         public bool TryRegister(IConfig data, IConfigHandler handler, bool updateHandlerOnFailure = false) {
             return TryRegister(data, handler, out _, updateHandlerOnFailure);
         }
 
+        public bool TryRegister<ConfigType>(string key, IConfigHandler handler, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
+            return TryRegister<ConfigType>(key, handler, out _, updateHandlerOnFailure);
+        }
 
         public bool TryRegister<ConfigType>(IConfigHandler handler, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
             return TryRegister<ConfigType>(handler, out _, updateHandlerOnFailure);
@@ -253,9 +286,9 @@ namespace Haley.Services {
             return this;
         }
 
-        private bool DeleteInternal(ConfigWrapper info) {
+        private bool DeleteInternal(ConfigHandlerWrapper vault) {
             try {
-                string finalPath = GetSavePath(info);
+                string finalPath = GetSavePath(vault.Info);
                 if (File.Exists(finalPath)) {
                     File.Delete(finalPath);
                 }
@@ -266,17 +299,35 @@ namespace Haley.Services {
             }
         }
 
-        private string GetConfigFileName(IConfig config) {
-            if (config.FileName == null) return config.FileName;
-            return config.GetType().FullName;
+        private string GetConfigInfoKey(IConfig config, IConfigHandler handler) {
+            if (config == null || handler == null) return RandomUtils.GetString(64).SanitizeJWT();
+            return GetConfigInfoKey(config.GetType(), handler.GetType());
+        }
+
+        private string GetConfigInfoKey<ConfigType>(IConfigHandler handler) where ConfigType : IConfig {
+            if (handler == null) return RandomUtils.GetString(64).SanitizeJWT();
+            return GetConfigInfoKey(typeof(ConfigType), handler.GetType());
+        }
+
+        private string GetConfigInfoKey(Type config, Type handler) {
+            if (config == null || handler == null) return RandomUtils.GetString(64).SanitizeJWT();
+            return $@"{handler.FullName}###{config.Name}"; //Only the handler gets full name.
         }
 
         #endregion PUBLIC METHODS
 
         #region PRIVATE METHODS
 
+        public string GenerateKey<ConfigType>(IConfigHandler handler) where ConfigType : IConfig {
+            return GetConfigInfoKey<ConfigType>(handler);
+        }
+
+        public string GenerateKey(Type configType, Type handlerType) {
+            return GetConfigInfoKey(configType, handlerType);
+        }
+
         private string EnsureBasePath(bool createDir = true) {
-            lock (_basePathObj) {
+            lock (basePathObj) {
                 if (string.IsNullOrWhiteSpace(_basepath)) {
                     _basepath = Path.Combine(AssemblyUtils.GetBaseDirectory(), "Configurations");
                 }
@@ -297,28 +348,28 @@ namespace Haley.Services {
             }
         }
 
-        private bool LoadConfigFromDirectory(ConfigWrapper wrapper, out (IConfig data, IConfig dataCopy) config) {
+        private bool LoadConfigFromDirectory(ConfigHandlerWrapper vault, out (IConfig data, IConfig dataCopy) config) {
             config = (null, null);
             try {
-                if (wrapper == null) return false;
+                if (vault.Info == null) return false;
                 //When an item is registere, also try to load already saved data.
                 do {
                     //Load the file from the location and
-                    string finalPath = GetSavePath(wrapper); //Load this file.
+                    string finalPath = GetSavePath(vault.Info); //Load this file.
                     if (!File.Exists(finalPath)) break;
                     string contents = File.ReadAllText(finalPath);
-                    if (_postLoadProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
+                    if (PostLoadProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
                     {
-                        contents = _postLoadProcessor?.Invoke(wrapper.Type, contents);
+                        contents = PostLoadProcessor?.Invoke(vault.Info, contents);
                     }
 
                     IConfig newData = null, copyData = null;
-                    if (UseCustomSerializers && _cfgDeserializer != null) {
-                        newData = _cfgDeserializer.Invoke(contents);
-                        copyData = _cfgDeserializer.Invoke(contents);
+                    if (UseCustomSerializers && ConfigDeserializer != null) {
+                        newData = ConfigDeserializer.Invoke(contents);
+                        copyData = ConfigDeserializer.Invoke(contents);
                     } else {
-                        newData = contents.FromJson(wrapper.Type) as IConfig;
-                        copyData = contents.FromJson(wrapper.Type) as IConfig;
+                        newData = contents.FromJson(vault.Info.ConfigType) as IConfig;
+                        copyData = contents.FromJson(vault.Info.ConfigType) as IConfig;
                     }
                     //Data and datacopy both will have two different unique ids.
                     config = (newData, copyData);
@@ -331,19 +382,23 @@ namespace Haley.Services {
             }
         }
 
-        private async Task<bool> LoadConfigInternal(ConfigWrapper info, bool notifyConsumers = true) {
+        private async Task<bool> LoadConfigInternal(ConfigHandlerWrapper vault, string handlerId = null) {
             try {
-                if (info == null) return false;
-                if (LoadConfigFromDirectory(info, out var result)) {
+                if (vault == null) return false;
+                if (LoadConfigFromDirectory(vault, out var result)) {
+                    //On fresh register we need not inform the
                     //Update the config
-                    UpdateConfigInternal(info, result.data);
-                    //Upon loading the internal data from local directory, we need to notify others.
-                    if (!notifyConsumers) return true;
-                    foreach (var consumerKvp in info.Consumers) {
-                        try {
-                            await handlerKvp.Value?.OnConfigLoaded(result.dataCopy);
-                        } catch (Exception) {
-                            continue;
+                    UpdateConfigInternal(vault.Info.Name.ToLower(), result.data); //just update, donot notify client.
+                    //Now, notify either all clients, or only the client matching the handler Id.
+                    if (!string.IsNullOrWhiteSpace(handlerId)) {
+                        await vault.Handlers.FirstOrDefault(p => p.Key == handlerId).Value?.OnConfigLoaded(result.dataCopy);
+                    } else {
+                        foreach (var handlerKvp in vault.Handlers) {
+                            try {
+                                await handlerKvp.Value?.OnConfigLoaded(result.dataCopy);
+                            } catch (Exception) {
+                                continue;
+                            }
                         }
                     }
                     return true;
@@ -373,7 +428,7 @@ namespace Haley.Services {
                 _configs.TryAdd(info?.Name.ToLower(), new ConcurrentDictionary<string, ConfigHandlerWrapper>());
             }
 
-            //Get the current wrapper and add the handler.
+            //Get the current vault and add the handler.
             if (_configs.TryGetValue(info?.Name.ToLower(),out var handlerDic)){
                 var handlerId = handler.UniqueId.ToString();
                 if (!handlerDic.ContainsKey(handlerId)) {
@@ -420,16 +475,16 @@ namespace Haley.Services {
                 string finalPath = GetSavePath(vault.Info);
                 string _json = String.Empty;
 
-                if (UseCustomSerializers && _cfgSerializer != null) {
-                    _json = _cfgSerializer.Invoke(vault.Config);
+                if (UseCustomSerializers && ConfigSerializer != null) {
+                    _json = ConfigSerializer.Invoke(vault.Config);
                 } else {
                     _json = vault.Config.ToJson(); //Use internal extension Method
                 }
                 string tosaveJson = _json;
 
-                if (_preLoadProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
+                if (PreSaveProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
                 {
-                    tosaveJson = _preLoadProcessor?.Invoke(vault.Info, _json);
+                    tosaveJson = PreSaveProcessor?.Invoke(vault.Info, _json);
                 }
 
                 using (FileStream fs = File.Create(finalPath)) {
@@ -442,7 +497,7 @@ namespace Haley.Services {
             }
         }
 
-        private bool UpdateConfigInternal(ConfigWrapper info, IConfig config) {
+        private bool UpdateConfigInternal(string key, IConfig config) {
             try {
                 if (_configs.TryGetValue(key.ToLower(), out var vault)) {
                     //Dont' directly update the value of a value tuple (as it is VALUE tuple and not REFERENCE)
@@ -463,61 +518,5 @@ namespace Haley.Services {
         }
 
         #endregion PRIVATE METHODS
-
-        public T GetConfig<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public Task<bool> UpdateConfig<T>(T config) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public IConfigService SetStorageDirectory<T>(string storageDirectory) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRegister<T>(T data, IConfigProvider<T> provider, bool replaceHandlerIfExists = false) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRegister<T>(IConfigProvider<T> provider, bool replaceHandlerIfExists = false) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryUpdateProvider<T>(IConfigProvider<T> newProvider) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRegisterConsumer<T>(IConfigConsumer<T> consumer) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRemoveConsumer<T>(IConfigConsumer<T> consumer) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool Save<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool DeleteFile<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public string GetSavePath<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public void SetProcessors(Func<Type, string, string> presave_processor, Func<Type, string, string> postload_processor) {
-            throw new NotImplementedException();
-        }
-
-        public Task LoadConfig<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public Task ResetConfig<T>() {
-            throw new NotImplementedException();
-        }
     }
 }
