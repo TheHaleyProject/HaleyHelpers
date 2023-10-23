@@ -2,6 +2,7 @@
 using Haley.Enums;
 using Haley.Models;
 using Haley.Utils;
+using ProtoBuf;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -11,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Collections.Specialized.BitVector32;
 
 namespace Haley.Services {
 
@@ -331,6 +333,12 @@ namespace Haley.Services {
             }
         }
 
+        Task<T> GenerateAndCall<T>(object input,string method_name,Type argType,object argument) {
+            if (input == null) throw new ArgumentNullException("input");
+            input.GetType().GetMethod("OnConfigLoaded")?.MakeGenericMethod(argType)?.Invoke(input, new object[] { argument });
+            return Task.FromResult(default(T));
+        }
+
         private async Task<bool> LoadConfigInternal(ConfigWrapper info, bool notifyConsumers = true) {
             try {
                 if (info == null) return false;
@@ -341,7 +349,8 @@ namespace Haley.Services {
                     if (!notifyConsumers) return true;
                     foreach (var consumerKvp in info.Consumers) {
                         try {
-                            await handlerKvp.Value?.OnConfigLoaded(result.dataCopy);
+                            //typeof(DeclaringType).GetMethod("Linq").MakeGenericMethod(typeOne).Invoke(null, new object[] { Session });
+                           var response = await GenerateAndCall<bool>(consumerKvp.Value, "OnConfigLoaded", info.Type, result.dataCopy);
                         } catch (Exception) {
                             continue;
                         }
@@ -354,7 +363,7 @@ namespace Haley.Services {
             }
         }
 
-        private async Task<bool> RegisterInternal(IConfigRegisterInfo info, IConfig data, IConfigHandler handler, bool updateHandlerOnFailure) {
+        private async Task<bool> RegisterInternal(ConfigWrapper info, IConfig data, object handler, bool updateHandlerOnFailure) {
             if (info == null) throw new ArgumentNullException("ConfigInfo");
             if (info?.ConfigType == null) throw new ArgumentException("ConfigType of the IConfigRegisterInfo cannot be null. Please provide a valid type that implements IConfiguration");
             if (info?.Name == null) {
