@@ -10,55 +10,20 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using static System.Collections.Specialized.BitVector32;
 
 namespace Haley.Services {
 
-    public class ConfigManagerService : IConfigService {
-
-        #region DELEGATES
-
-        private Func<string, IConfig> _cfgDeserializer;
-        private Func<IConfig, string> _cfgSerializer;
-        private Func<Type, string, string> _postLoadProcessor;
-        private Func<Type, string, string> _preLoadProcessor;
-
-        #endregion DELEGATES
-
-        #region ATTRIBUTES
-
-        private const string DEFAULTEXTENSION = "json";
-        private string _basepath;
-        private object _basePathObj = new object();
-        private ConcurrentDictionary<string, ConfigWrapper> _configs = new ConcurrentDictionary<string, ConfigWrapper>();
-
-        #endregion ATTRIBUTES
-
-        #region PROPERTIES
-
-        public ExceptionHandling ExceptionMode { get; private set; }
-        public string FileExtension { get; set; }
-        public bool UseCustomProcessors { get; set; }
-        public bool UseCustomSerializers { get; set; }
-        public bool SaveWithFullName { get; set; }
-
-        #endregion PROPERTIES
-
-        #region EVENTS
-
-        //public event EventHandler<string> ConfigSaved;
-        //public event EventHandler<string> ConfigLoaded;
-
-        #endregion EVENTS
+    public partial class ConfigManagerService : IConfigService {
 
         #region CONSTRUCTORS
 
         public ConfigManagerService() {
-            UseCustomProcessors = true;
-            UseCustomSerializers = false;
-            ExceptionMode = ExceptionHandling.OutputDiagnostics;
+           
         }
 
         #endregion CONSTRUCTORS
@@ -110,7 +75,7 @@ namespace Haley.Services {
             return null;
         }
 
-        public string GetSavePath(ConfigWrapper info) {
+        string GetSavePath(ConfigWrapper info) {
             EnsureBasePath();
 
             string finalPath = null;
@@ -144,24 +109,24 @@ namespace Haley.Services {
         }
 
         public async Task<bool> LoadConfig(string key) {
-            if (_configs.TryGetValue(key.ToLower(), out var targetVault)) {
-                if (targetVault?.Info == null) return false;
-                return await LoadConfigInternal(targetVault);
-            }
+            //if (_configs.TryGetValue(key.ToLower(), out var targetVault)) {
+            //    if (targetVault?.Info == null) return false;
+            //    return await LoadConfigInternal(targetVault);
+            //}
             return false;
         }
 
         public async Task ResetConfig(string key) {
-            if (_configs.TryGetValue(key.ToLower(), out var vault)) {
-                if (vault.Info == null) return;
-                if (ResetConfigInternal(vault, out var newData)) {
-                    //UpdateConfig(Key.ToLower(), newData);
-                    vault.Config = newData;
-                    //Whenever the config is reset, also inform clients
-                    await vault.Handler?.OnConfigLoaded(newData);
-                    //targetRes.info.ChangeHandler.Invoke(ConfigStatus.Reset); //Just to avoid getting updated by the UpdateConfig Method, we are sending in a new data.
-                }
-            }
+            //if (_configs.TryGetValue(key.ToLower(), out var vault)) {
+            //    if (vault.Info == null) return;
+            //    if (ResetConfigInternal(vault, out var newData)) {
+            //        //UpdateConfig(Key.ToLower(), newData);
+            //        vault.Config = newData;
+            //        //Whenever the config is reset, also inform clients
+            //        await vault.Handler?.OnConfigUpdated(newData);
+            //        //targetRes.info.ChangeHandler.Invoke(ConfigStatus.Reset); //Just to avoid getting updated by the UpdateConfig Method, we are sending in a new data.
+            //    }
+            //}
         }
 
         public bool Save(string key) {
@@ -209,45 +174,35 @@ namespace Haley.Services {
             _cfgDeserializer = deserializer;
         }
 
+        //public bool TryUpdateHandler(string key, IConfigHandler handler) {
+        //    //if (key == null) return false;
+        //    //if (_configs.TryGetValue(key.ToLower(), out var vault)) {
+        //    //    if (vault == null) return false;
+        //    //    vault.Handler = handler; //Set this as the handler.
 
-        public bool TryRegister(IConfig data, IConfigHandler handler, bool updateHandlerOnFailure = false) {
-            return TryRegister(data, handler, out _, updateHandlerOnFailure);
-        }
-
-
-        public bool TryRegister<ConfigType>(IConfigHandler handler, bool updateHandlerOnFailure = false) where ConfigType : IConfig {
-            return TryRegister<ConfigType>(handler, out _, updateHandlerOnFailure);
-        }
-
-        public bool TryUpdateHandler(string key, IConfigHandler handler) {
-            if (key == null) return false;
-            if (_configs.TryGetValue(key.ToLower(), out var vault)) {
-                if (vault == null) return false;
-                vault.Handler = handler; //Set this as the handler.
-
-                if (ReloadConfigOnHandlerUpdate) {
-                    return LoadConfigInternal(vault).Result;
-                }
-                return true;
-            }
-            return false;
-        }
+        //    //    if (ReloadConfigOnHandlerUpdate) {
+        //    //        return LoadConfigInternal(vault).Result;
+        //    //    }
+        //    //    return true;
+        //    //}
+        //    return false;
+        //}
 
         public async Task<bool> UpdateConfig(string key, IConfig config) {
-            try {
-                if (string.IsNullOrWhiteSpace(key)) return false;
+            //try {
+            //    if (string.IsNullOrWhiteSpace(key)) return false;
 
-                if (UpdateConfigInternal(key, config)) {
-                    //also notify handler that the config has been updated.
-                    if (_configs.TryGetValue(key.ToLower(), out var vault)) {
-                        await vault.Handler?.OnConfigLoaded(config);
-                    }
-                    return true;
-                }
-                return false;
-            } catch (Exception ex) {
-                return HandleException(ex);
-            }
+            //    if (UpdateConfigInternal(key, config)) {
+            //        //also notify handler that the config has been updated.
+            //        if (_configs.TryGetValue(key.ToLower(), out var vault)) {
+            //            await vault.Handler?.OnConfigUpdated(config);
+            //        }
+            return true;
+            //    }
+            //    return false;
+            //} catch (Exception ex) {
+            //    return HandleException(ex);
+            //}
         }
 
         public IConfigService WithExceptionHandling(ExceptionHandling exceptionHandling) {
@@ -299,8 +254,21 @@ namespace Haley.Services {
             }
         }
 
-        private bool LoadConfigFromDirectory(ConfigWrapper wrapper, out (IConfig data, IConfig dataCopy) config) {
-            config = (null, null);
+        private IConfig ConvertToConfig(string contents, Type configType) {
+            IConfig data = null;
+            try {
+                if (UseCustomSerializers && _cfgDeserializer != null) {
+                    data = _cfgDeserializer.Invoke(contents);
+                } else {
+                    data = contents.FromJson(configType) as IConfig;
+                }
+            } catch (Exception) {
+            }
+            return data;
+        }
+
+        private bool LoadConfigFromDirectory(ConfigWrapper wrapper, out string contents) {
+            contents = string.Empty;
             try {
                 if (wrapper == null) return false;
                 //When an item is registere, also try to load already saved data.
@@ -308,23 +276,12 @@ namespace Haley.Services {
                     //Load the file from the location and
                     string finalPath = GetSavePath(wrapper); //Load this file.
                     if (!File.Exists(finalPath)) break;
-                    string contents = File.ReadAllText(finalPath);
+                    contents = File.ReadAllText(finalPath);
                     if (_postLoadProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
                     {
                         contents = _postLoadProcessor?.Invoke(wrapper.Type, contents);
                     }
-
-                    IConfig newData = null, copyData = null;
-                    if (UseCustomSerializers && _cfgDeserializer != null) {
-                        newData = _cfgDeserializer.Invoke(contents);
-                        copyData = _cfgDeserializer.Invoke(contents);
-                    } else {
-                        newData = contents.FromJson(wrapper.Type) as IConfig;
-                        copyData = contents.FromJson(wrapper.Type) as IConfig;
-                    }
-                    //Data and datacopy both will have two different unique ids.
-                    config = (newData, copyData);
-                    if (newData == null) break; //If data is null, do not load.
+                    if (contents == null) break;
                     return true;
                 } while (false);
                 return false;
@@ -333,24 +290,26 @@ namespace Haley.Services {
             }
         }
 
-        Task<T> GenerateAndCall<T>(object input,string method_name,Type argType,object argument) {
-            if (input == null) throw new ArgumentNullException("input");
-            input.GetType().GetMethod("OnConfigLoaded")?.MakeGenericMethod(argType)?.Invoke(input, new object[] { argument });
-            return Task.FromResult(default(T));
-        }
-
         private async Task<bool> LoadConfigInternal(ConfigWrapper info, bool notifyConsumers = true) {
             try {
                 if (info == null) return false;
-                if (LoadConfigFromDirectory(info, out var result)) {
-                    //Update the config
-                    UpdateConfigInternal(info, result.data);
-                    //Upon loading the internal data from local directory, we need to notify others.
+                if (LoadConfigFromDirectory(info, out var contents)) {
+                    //It is assumed that the incoming wrap is taken from the dictionary, so, it should be a reference.
+                    //We can directly set the value.
+                    info.ConfigContents = contents;
+                    info.Config = ConvertToConfig(contents, info.Type);
+                    ////Update the config
+                    //UpdateConfigInternal(info, ConvertToConfig(contents, info.Type)); //Store it in the file
+                    ////Upon loading the internal data from local directory, we need to notify others.
                     if (!notifyConsumers) return true;
-                    foreach (var consumerKvp in info.Consumers) {
+                    foreach (var consumerKvp in info.ConsumerObjects) {
                         try {
                             //typeof(DeclaringType).GetMethod("Linq").MakeGenericMethod(typeOne).Invoke(null, new object[] { Session });
-                           var response = await GenerateAndCall<bool>(consumerKvp.Value, "OnConfigLoaded", info.Type, result.dataCopy);
+                            var toShare = info.Config;
+                            if (SendConfigCloneToConsumers) {
+                                toShare = ConvertToConfig(contents, info.Type); //Generate a clone from the generated contents.
+                            }
+                            var response = consumerKvp.Value.InvokeMethod<bool>("OnConfigUpdated", info.Type, toShare); 
                         } catch (Exception) {
                             continue;
                         }
@@ -363,170 +322,151 @@ namespace Haley.Services {
             }
         }
 
-        private async Task<bool> RegisterInternal(ConfigWrapper info, IConfig data, object handler, bool updateHandlerOnFailure) {
-            if (info == null) throw new ArgumentNullException("ConfigInfo");
-            if (info?.ConfigType == null) throw new ArgumentException("ConfigType of the IConfigRegisterInfo cannot be null. Please provide a valid type that implements IConfiguration");
-            if (info?.Name == null) {
-                throw new ArgumentException("Config Name cannot be null. Please provide a valid name which will be used as the Key");
-            }
+        private async Task<bool> RegisterInternal<T>(T config, IConfigProvider<T> provider, List<IConfigConsumer<T>> consumers, bool replaceProviderIfExists, bool silentRegistration) where T:class,IConfig,new() {
+            //Convert incoming inputs into a Config Wrapper and deal internally.
+            try {
 
-            if (handler.UniqueId == null) handler.UniqueId = Guid.NewGuid(); //We are directly setting the unique ID on the handler. So, that next time, when this handler tries to make a call, it will send same id again.
+                var configType = typeof(T);
+                var configName = configType.FullName;
+                bool firstEntry = !_configs.ContainsKey(configName); //Negate value.
 
-            IConfig initialData = data;
-            if (initialData == null) {
-                initialData = handler?.PrepareDefaultConfig();
-            }
-
-            //First add the key if not present.
-            if (!_configs.ContainsKey(info?.Name.ToLower())) {
-                _configs.TryAdd(info?.Name.ToLower(), new ConcurrentDictionary<string, ConfigHandlerWrapper>());
-            }
-
-            //Get the current wrapper and add the handler.
-            if (_configs.TryGetValue(info?.Name.ToLower(),out var handlerDic)){
-                var handlerId = handler.UniqueId.ToString();
-                if (!handlerDic.ContainsKey(handlerId)) {
-                    handlerDic.TryAdd(handlerId, new ConfigHandlerWrapper() { Config = data, Handler = handler, Info = info });
+                //Create and add new wrapper if not exists.
+                if (firstEntry) {
+                    _configs.TryAdd(configName, new ConfigWrapper(configType));
                 }
 
-                if (handlerDic.TryGetValue(handlerId, out var currentWrapper)) {
-                    currentWrapper.Handler = handler;
-                    await LoadConfigInternal(currentWrapper, handlerId);
+                if (!_configs.TryGetValue(configName, out ConfigWrapper wrap)) return false;
+
+                if (provider != null && (provider.UniqueId == null || provider.UniqueId == Guid.Empty)) {
+                    provider.UniqueId = Guid.NewGuid();
                 }
-               
+
+                //Process Provider and Config
+                if (firstEntry) {
+                    //For first registration, always give preference to loading config from the local directory, if not prepare default config.
+                    if (config != null) {
+                        wrap.Config = config; //Could be null as well.
+                    } else {
+                        //Try to load from directory. Even if that is empty, then in upcoming steps we will try to prepare default config.
+                    }
+                    wrap.Provider = provider;
+                } else if (replaceProviderIfExists) {
+                    wrap.Provider = provider; //Only replace provider, if the argument has been set.
+                }
+
+                
+
+                //Handle Initial Config.
+                if (wrap.Config == null && wrap.Provider != null){
+                    try {
+                        var dummy = await wrap.Provider.InvokeMethod<T>(nameof(provider.PrepareDefaultConfig), typeof(bool), false);
+                        var actual =  await wrap.Provider.InvokeMethod<T>(nameof(provider.PrepareDefaultConfig), null, null);
+                        wrap.Config = actual;
+                    } catch (Exception) {
+                        wrap.Config = new T(); //on failure, just create the default.
+                    }
+                }
+
+                bool updateFailed = false;
+                //Process Consumers.
+                if (consumers != null) {
+                    foreach (var consumer in consumers) {
+                        if (consumer.UniqueId == null || provider.UniqueId == Guid.Empty) consumer.UniqueId = Guid.NewGuid();
+                        var key = consumer.UniqueId.ToString();
+                        if (!wrap.ConsumerObjects.ContainsKey(key)) { wrap.ConsumerObjects.TryAdd(key, null); }
+                        wrap.ConsumerObjects[key] = consumer; //Add this consumer.
+                        try {
+                            if (!silentRegistration) {
+                                //Inform the consumers right away.
+                                if (!await consumer.OnConfigUpdated(wrap.Config as T)) {
+                                    updateFailed = true; //Even one failure will flag this up. Currently not used. May be used in future.
+                                }; 
+                            }
+                        } catch (Exception) {
+                            continue;
+                        }
+                    }
+                }
                 return true;
+            } catch (Exception ex) {
+                return false;
             }
-            return false;
         }
 
-        private bool ResetConfigInternal(ConfigHandlerWrapper vault, out IConfig data) {
+        private bool ResetConfigInternal(ConfigWrapper vault, out IConfig data) {
             data = null;
             try {
-                if (vault.Info == null) return false;
-                //When an item is registere, also try to load already saved data.
-                if (vault.Handler != null) {
-                    var defData = vault.Handler.PrepareDefaultConfig();
-                    if (defData == null) return false;
-                    data = defData; //Use this as the default data.
-                    return true;
-                }
+                //if (vault.Info == null) return false;
+                ////When an item is registere, also try to load already saved data.
+                //if (vault.Handler != null) {
+                //    var defData = vault.Handler.PrepareDefaultConfig();
+                //    if (defData == null) return false;
+                //    data = defData; //Use this as the default data.
+                //    return true;
+                //}
                 return false;
             } catch (Exception ex) {
                 return HandleException(ex);
             }
         }
 
-        private bool SaveInternal(ConfigHandlerWrapper vault) {
+        private bool SaveInternal(ConfigWrapper vault) {
             try {
-                //First call the handler.
-                if (vault.Handler != null) {
-                    var updatedConfig = vault.Handler.OnConfigSaving();
-                    if (updatedConfig != null) {
-                        vault.Config = updatedConfig; //Also save the internal info, so that we can fetch later
-                    }
-                }
+                ////First call the handler.
+                //if (vault.Handler != null) {
+                //    var updatedConfig = vault.Handler.FetchConfigToSave();
+                //    if (updatedConfig != null) {
+                //        vault.Config = updatedConfig; //Also save the internal info, so that we can fetch later
+                //    }
+                //}
 
-                string finalPath = GetSavePath(vault.Info);
-                string _json = String.Empty;
+                //string finalPath = GetSavePath(vault.Info);
+                //string _json = String.Empty;
 
-                if (UseCustomSerializers && _cfgSerializer != null) {
-                    _json = _cfgSerializer.Invoke(vault.Config);
-                } else {
-                    _json = vault.Config.ToJson(); //Use internal extension Method
-                }
-                string tosaveJson = _json;
+                //if (UseCustomSerializers && _cfgSerializer != null) {
+                //    _json = _cfgSerializer.Invoke(vault.Config);
+                //} else {
+                //    _json = vault.Config.ToJson(); //Use internal extension Method
+                //}
+                //string tosaveJson = _json;
 
-                if (_preLoadProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
-                {
-                    tosaveJson = _preLoadProcessor?.Invoke(vault.Info, _json);
-                }
+                //if (_preLoadProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
+                //{
+                //    tosaveJson = _preLoadProcessor?.Invoke(vault.Info, _json);
+                //}
 
-                using (FileStream fs = File.Create(finalPath)) {
-                    byte[] fileinfo = new UTF8Encoding(true).GetBytes(tosaveJson);
-                    fs.Write(fileinfo, 0, fileinfo.Length);
-                }
+                //using (FileStream fs = File.Create(finalPath)) {
+                //    byte[] fileinfo = new UTF8Encoding(true).GetBytes(tosaveJson);
+                //    fs.Write(fileinfo, 0, fileinfo.Length);
+                //}
                 return true;
             } catch (Exception ex) {
                 return HandleException(ex);
             }
         }
 
-        private bool UpdateConfigInternal(ConfigWrapper info, IConfig config) {
-            try {
-                if (_configs.TryGetValue(key.ToLower(), out var vault)) {
-                    //Dont' directly update the value of a value tuple (as it is VALUE tuple and not REFERENCE)
-                    if (vault.Info == null) return false;
-                    if (config.GetType() == vault.Info.ConfigType) {
-                        //only types matches, then we udpate
-                        vault.Config = config; //Since this is reference type, we directly change. (not a tupel)
-                        //if(_configs.TryUpdate(Key.ToLower(), (config, res.info), res)) {
-                        //    return true;
-                        //}
-                        return true;
-                    }
-                }
-                return false;
-            } catch (Exception ex) {
-                return HandleException(ex);
-            }
-        }
+    
+
+        //private bool UpdateConfigInternal(ConfigWrapper info, IConfig config) {
+        //    try {
+        //        if (_configs.TryGetValue(key.ToLower(), out var vault)) {
+        //            //Dont' directly update the value of a value tuple (as it is VALUE tuple and not REFERENCE)
+        //            if (vault.Info == null) return false;
+        //            if (config.GetType() == vault.Info.ConfigType) {
+        //                //only types matches, then we udpate
+        //                vault.Config = config; //Since this is reference type, we directly change. (not a tupel)
+        //                //if(_configs.TryUpdate(Key.ToLower(), (config, res.info), res)) {
+        //                //    return true;
+        //                //}
+        //                return true;
+        //            }
+        //        }
+        //        return false;
+        //    } catch (Exception ex) {
+        //        return HandleException(ex);
+        //    }
+        //}
 
         #endregion PRIVATE METHODS
-
-        public T GetConfig<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public Task<bool> UpdateConfig<T>(T config) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public IConfigService SetStorageDirectory<T>(string storageDirectory) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRegister<T>(T data, IConfigProvider<T> provider, bool replaceHandlerIfExists = false) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRegister<T>(IConfigProvider<T> provider, bool replaceHandlerIfExists = false) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryUpdateProvider<T>(IConfigProvider<T> newProvider) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRegisterConsumer<T>(IConfigConsumer<T> consumer) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRemoveConsumer<T>(IConfigConsumer<T> consumer) where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool Save<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public bool DeleteFile<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public string GetSavePath<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public void SetProcessors(Func<Type, string, string> presave_processor, Func<Type, string, string> postload_processor) {
-            throw new NotImplementedException();
-        }
-
-        public Task LoadConfig<T>() where T : IConfig {
-            throw new NotImplementedException();
-        }
-
-        public Task ResetConfig<T>() {
-            throw new NotImplementedException();
-        }
     }
 }
