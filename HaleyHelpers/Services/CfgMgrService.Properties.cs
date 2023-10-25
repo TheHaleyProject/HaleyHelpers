@@ -22,10 +22,10 @@ namespace Haley.Services {
 
         #region DELEGATES
 
-        private Func<string, IConfig> _cfgDeserializer;
-        private Func<IConfig, string> _cfgSerializer;
+        private Func<string, IConfig> _cfgDeserializer; //Custom serializer to Deserialize the string to Config
+        private Func<IConfig, string> _cfgSerializer; //Custom serializer to convert config to string
         private Func<Type, string, string> _postLoadProcessor;
-        private Func<Type, string, string> _preLoadProcessor;
+        private Func<Type, string, string> _preSaveProcessor;
 
         #endregion DELEGATES
 
@@ -50,9 +50,9 @@ namespace Haley.Services {
         #endregion PROPERTIES
 
         #region EVENTS
-
-        //public event EventHandler<string> ConfigSaved;
-        //public event EventHandler<string> ConfigLoaded;
+        //May be there might be some methods which might need to do some action based upon the config changes. 
+        public event EventHandler<IConfig> ConfigSaved;
+        public event EventHandler<IConfig> ConfigLoaded;
 
         #endregion EVENTS
         static ConcurrentDictionary<string, MethodInfo> _methodCache = new ConcurrentDictionary<string, MethodInfo>();

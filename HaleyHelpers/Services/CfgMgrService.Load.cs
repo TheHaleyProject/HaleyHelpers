@@ -1,5 +1,6 @@
 ﻿using Haley.Abstractions;
 using Haley.Enums;
+using Haley.Internal;
 using Haley.Models;
 using Haley.Utils;
 using ProtoBuf;
@@ -21,7 +22,8 @@ namespace Haley.Services {
     public partial class ConfigManagerService : IConfigService {
 
         public T GetConfig<T>() where T : class,IConfig,new() {
-            throw new NotImplementedException();
+            if (!GetWrapper<T>(out var wrap)) return null;
+            return wrap.Config as T; //Could be null as well.
         }
 
         public T GetConfigCopy<T>() where T : class,IConfig,new() {
@@ -32,19 +34,7 @@ namespace Haley.Services {
             throw new NotImplementedException();
         }
 
-        public IConfigService SetStorageDirectory<T>(string storageDirectory) where T : class,IConfig,new() {
-            throw new NotImplementedException();
-        }
-
-        public bool Save<T>() where T : class,IConfig,new() {
-            throw new NotImplementedException();
-        }
-
         public bool DeleteFile<T>() where T : class,IConfig,new() {
-            throw new NotImplementedException();
-        }
-
-        public string GetSavePath<T>() where T : class,IConfig,new() {
             throw new NotImplementedException();
         }
 

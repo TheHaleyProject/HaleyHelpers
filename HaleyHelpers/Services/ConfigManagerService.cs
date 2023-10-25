@@ -64,9 +64,6 @@ namespace Haley.Services {
             return _configs.Values.Select(p => p.Config);
         }
 
-        public string GetBasePath() {
-            return EnsureBasePath(true);
-        }
 
         public IConfig GetConfig(string key) {
             if (_configs.TryGetValue(key?.ToLower(), out var result)) {
@@ -75,30 +72,7 @@ namespace Haley.Services {
             return null;
         }
 
-        string GetSavePath(ConfigWrapper info) {
-            EnsureBasePath();
-
-            string finalPath = null;
-            if (info == null) return null;
-            if (!string.IsNullOrWhiteSpace(info.StorageDirectory)) {
-                if (Path.IsPathRooted(info.StorageDirectory)) {
-                    finalPath = info.StorageDirectory;
-                } else {
-                    finalPath = Path.Combine(_basepath, info.StorageDirectory);
-                }
-            }
-
-            if (finalPath == null) finalPath = _basepath;
-
-            FileAttributes attr = File.GetAttributes(finalPath);
-            if (!File.GetAttributes(finalPath).HasFlag(FileAttributes.Directory)) {
-                finalPath = Path.GetDirectoryName(finalPath);
-            }
-
-            var filename = SaveWithFullName ? info.FullName : info.Name;
-            finalPath = Path.Combine(finalPath, $@"{filename}.{(String.IsNullOrWhiteSpace(FileExtension) ? DEFAULTEXTENSION : FileExtension)}"); //Attach extension.
-            return finalPath;
-        }
+        
 
         public async Task LoadAllConfig() {
             var _keys = _configs.Keys.ToList();
@@ -129,43 +103,8 @@ namespace Haley.Services {
             //}
         }
 
-        public bool Save(string key) {
-            try {
-                if (_configs.TryGetValue(key.ToLower(), out var vault)) {
-                    //Save the config.
-                    if (SaveInternal(vault)) {
-                        return true;
-                    }
-                }
-                return false;
-            } catch (Exception ex) {
-                return HandleException(ex);
-            }
-        }
-
-        public void SaveAll() {
-            foreach (var vault in _configs.Values) {
-                try {
-                    SaveInternal(vault);
-                } catch (Exception ex) {
-                    switch (ExceptionMode) {
-                        case ExceptionHandling.Throw:
-                            throw;
-                        default:
-                            Debug.WriteLine(ex);
-                            continue;
-                    }
-                }
-            }
-        }
-
-        public void SetBasePath(string base_path) {
-            _basepath = base_path;
-            EnsureBasePath();
-        }
-
         public void SetProcessors(Func<Type, string, string> presave_processor, Func<Type, string, string> postload_processor) {
-            _preLoadProcessor = presave_processor;
+            _preSaveProcessor = presave_processor;
             _postLoadProcessor = postload_processor;
         }
 
@@ -232,17 +171,7 @@ namespace Haley.Services {
 
         #region PRIVATE METHODS
 
-        private string EnsureBasePath(bool createDir = true) {
-            lock (_basePathObj) {
-                if (string.IsNullOrWhiteSpace(_basepath)) {
-                    _basepath = Path.Combine(AssemblyUtils.GetBaseDirectory(), "Configurations");
-                }
-            }
-            if (!Directory.Exists(_basepath) && createDir) {
-                Directory.CreateDirectory(_basepath);
-            }
-            return _basepath;
-        }
+        
 
         private bool HandleException(Exception ex) {
             switch (ExceptionMode) {
@@ -254,18 +183,7 @@ namespace Haley.Services {
             }
         }
 
-        private IConfig ConvertToConfig(string contents, Type configType) {
-            IConfig data = null;
-            try {
-                if (UseCustomSerializers && _cfgDeserializer != null) {
-                    data = _cfgDeserializer.Invoke(contents);
-                } else {
-                    data = contents.FromJson(configType) as IConfig;
-                }
-            } catch (Exception) {
-            }
-            return data;
-        }
+        
 
         private bool LoadConfigFromDirectory(ConfigWrapper wrapper, out string contents) {
             contents = string.Empty;
@@ -296,18 +214,18 @@ namespace Haley.Services {
                 if (LoadConfigFromDirectory(info, out var contents)) {
                     //It is assumed that the incoming wrap is taken from the dictionary, so, it should be a reference.
                     //We can directly set the value.
-                    info.ConfigContents = contents;
-                    info.Config = ConvertToConfig(contents, info.Type);
+                    info.ConfigJsonData = contents;
+                    info.Config = ConvertStringToConfig(contents, info.Type);
                     ////Update the config
-                    //UpdateConfigInternal(info, ConvertToConfig(contents, info.Type)); //Store it in the file
+                    //UpdateConfigInternal(info, ConvertStringToConfig(contents, info.Type)); //Store it in the file
                     ////Upon loading the internal data from local directory, we need to notify others.
                     if (!notifyConsumers) return true;
-                    foreach (var consumerKvp in info.ConsumerObjects) {
+                    foreach (var consumerKvp in info.Consumers) {
                         try {
                             //typeof(DeclaringType).GetMethod("Linq").MakeGenericMethod(typeOne).Invoke(null, new object[] { Session });
                             var toShare = info.Config;
                             if (SendConfigCloneToConsumers) {
-                                toShare = ConvertToConfig(contents, info.Type); //Generate a clone from the generated contents.
+                                toShare = ConvertStringToConfig(contents, info.Type); //Generate a clone from the generated contents.
                             }
                             var response = consumerKvp.Value.InvokeMethod<bool>("OnConfigUpdated", info.Type, toShare); 
                         } catch (Exception) {
@@ -321,96 +239,7 @@ namespace Haley.Services {
                 return HandleException(ex);
             }
         }
-
-        async Task<MethodInfo> GetMethodInfo(Type targetType,string methodName,string explicitMethodName = null,Type argsType = null) {
-            try {
-                //Prepare a key.
-                string key = targetType.FullName + "##" + explicitMethodName ?? methodName + "##" + argsType?.Name ?? "NA";
-                if (_methodCache.ContainsKey(key)) return _methodCache[key];
-                var method = await ReflectionUtils.GetMethodInfo(targetType, methodName, explicitMethodName, argsType);
-                _methodCache.TryAdd(key, method);
-                return _methodCache[key];
-            } catch (Exception) {
-                return null;
-            }
-        }
-
-        private async Task<bool> RegisterInternal<T>(T config, IConfigProvider<T> provider, List<IConfigConsumer<T>> consumers, bool replaceProviderIfExists, bool silentRegistration) where T:class,IConfig,new() {
-            //Convert incoming inputs into a Config Wrapper and deal internally.
-            try {
-
-                var configType = typeof(T);
-                var configName = configType.FullName;
-                bool firstEntry = !_configs.ContainsKey(configName); //Negate value.
-
-                //Create and add new wrapper if not exists.
-                if (firstEntry) {
-                    _configs.TryAdd(configName, new ConfigWrapper(configType));
-                }
-
-                if (!_configs.TryGetValue(configName, out ConfigWrapper wrap)) return false;
-
-                //Get the explicit names.
-                if (string.IsNullOrWhiteSpace(wrap.ConsumerExplicitName)) {
-                    wrap.SetExplicitConsumerName(typeof(IConfigConsumer<T>).FullName);
-                }
-
-                if (string.IsNullOrWhiteSpace(wrap.ProviderExplicitName)) {
-                    wrap.SetExplicitProviderName(typeof(IConfigProvider<T>).FullName);
-                }
-
-                if (provider != null && (provider.UniqueId == null || provider.UniqueId == Guid.Empty)) {
-                    provider.UniqueId = Guid.NewGuid();
-                }
-
-                //Process Provider and Config
-                if (firstEntry) {
-                    //For first registration, always give preference to loading config from the local directory, if not prepare default config.
-                    if (config != null) {
-                        wrap.Config = config; //Could be null as well.
-                    } else {
-                        //Try to load from directory. Even if that is empty, then in upcoming steps we will try to prepare default config.
-                    }
-                    wrap.Provider = provider;
-                } else if (replaceProviderIfExists) {
-                    wrap.Provider = provider; //Only replace provider, if the argument has been set.
-                }
-
-                //Handle Initial Config.
-                if (wrap.Config == null && wrap.Provider != null){
-                    try {
-                        var method = await GetMethodInfo(wrap.Provider.GetType(), nameof(provider.PrepareDefaultConfig), wrap.ProviderExplicitName);
-                        wrap.Config = await wrap.Provider.InvokeMethod<T>(method);
-                    } catch (Exception ex) {
-                        wrap.Config = new T(); //on failure, just create the default.
-                    }
-                }
-
-                bool updateFailed = false;
-                //Process Consumers.
-                if (consumers != null) {
-                    foreach (var consumer in consumers) {
-                        if (consumer.UniqueId == null || provider.UniqueId == Guid.Empty) consumer.UniqueId = Guid.NewGuid();
-                        var key = consumer.UniqueId.ToString();
-                        if (!wrap.ConsumerObjects.ContainsKey(key)) { wrap.ConsumerObjects.TryAdd(key, null); }
-                        wrap.ConsumerObjects[key] = consumer; //Add this consumer.
-                        try {
-                            if (!silentRegistration) {
-                                //Inform the consumers right away.
-                                if (!await consumer.OnConfigUpdated(wrap.Config as T)) {
-                                    updateFailed = true; //Even one failure will flag this up. Currently not used. May be used in future.
-                                }; 
-                            }
-                        } catch (Exception) {
-                            continue;
-                        }
-                    }
-                }
-                return true;
-            } catch (Exception ex) {
-                return false;
-            }
-        }
+       
 
         private bool ResetConfigInternal(ConfigWrapper vault, out IConfig data) {
             data = null;
@@ -429,40 +258,7 @@ namespace Haley.Services {
             }
         }
 
-        private bool SaveInternal(ConfigWrapper vault) {
-            try {
-                ////First call the handler.
-                //if (vault.Handler != null) {
-                //    var updatedConfig = vault.Handler.FetchConfigToSave();
-                //    if (updatedConfig != null) {
-                //        vault.Config = updatedConfig; //Also save the internal info, so that we can fetch later
-                //    }
-                //}
-
-                //string finalPath = GetSavePath(vault.Info);
-                //string _json = String.Empty;
-
-                //if (UseCustomSerializers && _cfgSerializer != null) {
-                //    _json = _cfgSerializer.Invoke(vault.Config);
-                //} else {
-                //    _json = vault.Config.ToJson(); //Use internal extension Method
-                //}
-                //string tosaveJson = _json;
-
-                //if (_preLoadProcessor != null && UseCustomProcessors) //this should be used by the config manager for any kind of encryption.
-                //{
-                //    tosaveJson = _preLoadProcessor?.Invoke(vault.Info, _json);
-                //}
-
-                //using (FileStream fs = File.Create(finalPath)) {
-                //    byte[] fileinfo = new UTF8Encoding(true).GetBytes(tosaveJson);
-                //    fs.Write(fileinfo, 0, fileinfo.Length);
-                //}
-                return true;
-            } catch (Exception ex) {
-                return HandleException(ex);
-            }
-        }
+        
 
     
 

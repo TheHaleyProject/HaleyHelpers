@@ -5,7 +5,8 @@ using ConsoleTest;
 
 var cfgTest = new ConfigTest();
 
-cfgTest.Register();
+cfgTest.RegisterTest();
+cfgTest.SaveConfigTest().Wait();
 
 
 

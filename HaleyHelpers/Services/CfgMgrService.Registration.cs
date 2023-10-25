@@ -22,13 +22,13 @@ namespace Haley.Services {
 
         //IF INCOMING CONFIG IS NULL, SEND AS IS. DO NOT TRY TO CREATE DEFAULT CONFIG HERE. IT WILL BE HANDLED IN INTERNAL REGISTRATION
 
+        #region General Registrations
+
         #region Tunneling Call
-        public bool TryRegister<T>(T config, IConfigProvider<T> provider, List<IConfigConsumer<T>> consumers, bool replaceProviderIfExists = false, bool silentRegistration = true) where T : class, IConfig,new() {
-            return RegisterInternal<T>(config, provider, null, replaceProviderIfExists, true).Result;
+        public bool TryRegister<T>(T config, IConfigProvider<T> provider, List<IConfigConsumer<T>> consumers, bool replaceProviderIfExists = false, bool silentRegistration = true) where T : class, IConfig, new() {
+            return RegisterInternal<T>(config, provider, consumers, replaceProviderIfExists, true).Result;
         }
         #endregion
-
-        #region General Registrations
         public bool TryRegister<T>(T config, IConfigProvider<T> provider, bool replaceProviderIfExists = false) where T : class, IConfig,new() {
             return TryRegister<T>(config, provider, null, replaceProviderIfExists);
         }
@@ -52,31 +52,33 @@ namespace Haley.Services {
 
         #region Consumer
         public bool TryRegisterConsumer<T>(IConfigConsumer<T> consumer, bool silentRegistration = true) where T : class, IConfig,new() {
-            throw new NotImplementedException();
-        }
-
-        public bool TryRegisterConsumer<T>(Action<T> action_consumer, out int id, bool silentRegistration = true) where T : class, IConfig,new() {
-            throw new NotImplementedException();
+            return TryRegisterConsumers<T>(new List<IConfigConsumer<T>>() { consumer}, silentRegistration);
         }
 
         public bool TryRegisterConsumers<T>(List<IConfigConsumer<T>> consumers, bool silentRegistration = true) where T : class, IConfig,new() {
-            throw new NotImplementedException();
+            return TryRegister<T>(null, null, consumers, silentRegistration: silentRegistration);
         }
 
         public bool TryRemoveConsumer<T>(IConfigConsumer<T> consumer) where T : class, IConfig,new() {
-            throw new NotImplementedException();
-        }
-        public bool TryRemoveConsumer<T>(int actionId) where T :  IConfig {
-            throw new NotImplementedException();
+            return TryRemoveConsumers<T>(new List<IConfigConsumer<T>>() { consumer });
         }
 
         public bool TryRemoveConsumers<T>(List<IConfigConsumer<T>> consumers) where T : class, IConfig,new() {
-            throw new NotImplementedException();
+            if (consumers == null || consumers.Count == 0) return true; //No input.
+            if (GetWrapper<T>(out var wrapper) || wrapper.Consumers == null) return true; //unable to fetch value of key.
+
+            var toremoveList = consumers.Where(p=> p.UniqueId != null && p.UniqueId != Guid.Empty).Select(q => q.UniqueId.ToString());
+
+            foreach(var toremove in toremoveList) {
+                wrapper.Consumers.TryRemove(toremove, out _);
+            }
+            return true; 
         }
         #endregion
 
         public bool TryRegisterOrUpdateProvider<T>(IConfigProvider<T> newProvider) where T : class, IConfig,new() {
-            throw new NotImplementedException();
+            if (newProvider == null) return false;
+            return TryRegister<T>(null, newProvider, null, true);
         }
     }
 }
