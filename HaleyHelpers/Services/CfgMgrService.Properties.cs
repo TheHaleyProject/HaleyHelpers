@@ -55,5 +55,7 @@ namespace Haley.Services {
         //public event EventHandler<string> ConfigLoaded;
 
         #endregion EVENTS
+        static ConcurrentDictionary<string, MethodInfo> _methodCache = new ConcurrentDictionary<string, MethodInfo>();
+
     }
 }

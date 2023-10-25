@@ -322,6 +322,19 @@ namespace Haley.Services {
             }
         }
 
+        async Task<MethodInfo> GetMethodInfo(Type targetType,string methodName,string explicitMethodName = null,Type argsType = null) {
+            try {
+                //Prepare a key.
+                string key = targetType.FullName + "##" + explicitMethodName ?? methodName + "##" + argsType?.Name ?? "NA";
+                if (_methodCache.ContainsKey(key)) return _methodCache[key];
+                var method = await ReflectionUtils.GetMethodInfo(targetType, methodName, explicitMethodName, argsType);
+                _methodCache.TryAdd(key, method);
+                return _methodCache[key];
+            } catch (Exception) {
+                return null;
+            }
+        }
+
         private async Task<bool> RegisterInternal<T>(T config, IConfigProvider<T> provider, List<IConfigConsumer<T>> consumers, bool replaceProviderIfExists, bool silentRegistration) where T:class,IConfig,new() {
             //Convert incoming inputs into a Config Wrapper and deal internally.
             try {
@@ -336,6 +349,15 @@ namespace Haley.Services {
                 }
 
                 if (!_configs.TryGetValue(configName, out ConfigWrapper wrap)) return false;
+
+                //Get the explicit names.
+                if (string.IsNullOrWhiteSpace(wrap.ConsumerExplicitName)) {
+                    wrap.SetExplicitConsumerName(typeof(IConfigConsumer<T>).FullName);
+                }
+
+                if (string.IsNullOrWhiteSpace(wrap.ProviderExplicitName)) {
+                    wrap.SetExplicitProviderName(typeof(IConfigProvider<T>).FullName);
+                }
 
                 if (provider != null && (provider.UniqueId == null || provider.UniqueId == Guid.Empty)) {
                     provider.UniqueId = Guid.NewGuid();
@@ -354,15 +376,12 @@ namespace Haley.Services {
                     wrap.Provider = provider; //Only replace provider, if the argument has been set.
                 }
 
-                
-
                 //Handle Initial Config.
                 if (wrap.Config == null && wrap.Provider != null){
                     try {
-                        var dummy = await wrap.Provider.InvokeMethod<T>(nameof(provider.PrepareDefaultConfig), typeof(bool), false);
-                        var actual =  await wrap.Provider.InvokeMethod<T>(nameof(provider.PrepareDefaultConfig), null, null);
-                        wrap.Config = actual;
-                    } catch (Exception) {
+                        var method = await GetMethodInfo(wrap.Provider.GetType(), nameof(provider.PrepareDefaultConfig), wrap.ProviderExplicitName);
+                        wrap.Config = await wrap.Provider.InvokeMethod<T>(method);
+                    } catch (Exception ex) {
                         wrap.Config = new T(); //on failure, just create the default.
                     }
                 }

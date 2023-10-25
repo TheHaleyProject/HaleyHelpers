@@ -7,60 +7,125 @@ using System.Reflection;
 using System.Data;
 using Haley.Internal;
 using Haley.Enums;
+using System.Runtime.CompilerServices;
+using System.Security.AccessControl;
+using System.Runtime.InteropServices;
 
 namespace Haley.Utils
 {
     public static class ReflectionUtils {
 
-        public static Task<object> InvokeMethod(this object input, string method_name, Type argType, Type returnType, object argument, StringComparison nameComparison = StringComparison.OrdinalIgnoreCase, string method_name_explicit= null) {
+        public static async Task<object> InvokeMethod(this object input, string method_name, Type argType, object argument, string interface_explicitName = null, StringComparison nameComparison = StringComparison.OrdinalIgnoreCase) {
             try {
 
                 if (input == null) throw new ArgumentNullException("input");
                 //How do we call the below method asynchronously??
                 var inputType = input.GetType();
-                MethodInfo matchingMethod = null;
+                MethodInfo matchingMethod = await GetMethodInfo(input.GetType(),method_name,interface_explicitName,argType);
                 object response = null;
-                var allMethods = inputType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-                // the method may be explicitly implemented (using interfaces) or direclty implemented.
-                
                 if (argType == null) {
-                    //no input arguments required.
-                    matchingMethod = inputType.GetMethods().Single(p =>
-                    p.Name.Equals(method_name, nameComparison) &&
-                    p.GetParameters().Length == 0 && 
-                    returnType ==  p.ReturnType); //Should be a parameter less method.
                     response = matchingMethod.Invoke(input, null);
                 } else {
-                    matchingMethod = inputType.GetMethods().Single(p =>
-                   p.Name.Equals(method_name, nameComparison) &&
-                   p.GetParameters().Length == 1 &&
-                   p.GetParameters().First().ParameterType == argType &&
-                    returnType == p.ReturnType); //todo: Just check and confirm
-                   response = matchingMethod.Invoke(input, new object[] { argument });
+                    response = matchingMethod.Invoke(input, new object[] { argument });
                 }
-               
-                return Task.FromResult(response);
-            } catch (Exception) {
+
+                return response;
+            } catch (Exception ex) {
                 throw;
             }
         }
-            public static Task<T> InvokeMethod<T>(this object input, string method_name, Type argType, object argument, StringComparison nameComparison = StringComparison.OrdinalIgnoreCase) {
+        
+         public static async Task<T> InvokeMethod<T>(this object input, string method_name,  Type argType = null, object argument = null, string interface_explicitName = null, StringComparison nameComparison = StringComparison.OrdinalIgnoreCase) {
                     var resultType = typeof(T); //Should we validate?
             try {
-                var objectResponse = input.InvokeMethod(method_name, argType,resultType, argument, nameComparison); //Result type is important
-                var response = objectResponse.Result;
+                var response = await input.InvokeMethod(method_name, argType,argument,interface_explicitName, nameComparison); //Result type is important
                 if (response != null && response.GetType().BaseType == typeof(Task)) {
-                    return (Task<T>)response;
+                    var task = response as Task<T>;
+                    if (task == null) throw new ArgumentException($@"Unable to convert the returned object of type {response.GetType()} to {typeof(T)} from the method {method_name} ");
+                    return  await (task);
                 }
-                return Task.FromResult((T)response);
-            } catch (Exception) {
-                if (resultType.IsValueType) {
-                    return Task.FromResult(default(T));
-                } else {
-                    return Task.FromResult(default(T));
-                }
+                return (T)response;
+            } catch (Exception ex) {
+                throw;
             }
+        }
+
+        public static Task<object> InvokeMethod(this object input, MethodInfo method, object argument = null) {
+            try {
+
+                if (input == null) throw new ArgumentNullException("input");
+                //How do we call the below method asynchronously??
+                object response = null;
+                if (method.GetParameters().Length == 0) {
+                    response = method.Invoke(input, null);
+                } else if (method.GetParameters().Length == 1) {
+                    response = method.Invoke(input, new object[] { argument });
+                }
+                return Task.FromResult(response);
+            } catch (Exception ex) {
+                throw;
+            }
+        }
+
+        public static async Task<T> InvokeMethod<T>(this object input, MethodInfo method, object argument = null) {
+            var resultType = typeof(T); //Should we validate?
+            try {
+                var response = await input.InvokeMethod(method, argument); //Result type is important
+                if (response != null && response.GetType().BaseType == typeof(Task)) {
+                    var task = response as Task<T>;
+                    if (task == null) throw new ArgumentException($@"Unable to convert the returned object of type {response.GetType()} to {typeof(T)} from the method {method.Name} ");
+                    return await (task);
+                }
+                return (T)response;
+            } catch (Exception ex) {
+                throw;
+            }
+        }
+
+
+        public static Task<MethodInfo> GetMethodInfo(Type targetType, string methodName, string interfaceExplicitName = null, Type argsType = null) {
+            try {
+                MethodInfo methodInfo = null;
+                Func<MethodInfo, bool> methodFilter = (mI) => {
+                    try {
+                        // PASS THROUGH DIFFERENT FILTERS
+                        //Check if argument matches
+                        if (argsType != null) {
+                            if (mI.GetParameters()?.Length != 1) return false;
+                            if (mI.GetParameters().FirstOrDefault().ParameterType != argsType) return false;
+                        }
+
+                        return true;
+                    } catch (Exception ex) {
+                        return false;
+                    }
+                };
+
+                if (targetType == null || string.IsNullOrWhiteSpace(methodName)) return null;
+
+                //A specific class might implement an interface in explicit way as well. In such cases, it is difficult to identify the exact method. It is a possibility that different interfaces might have same method signature. So, we might end up calling wrong method. It is always better to check for the explicit interfacename and method availability first.
+
+                if (interfaceExplicitName != null) {
+                    var matchingNonPublic = targetType.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance).Where(p => p.Name.Equals($@"{interfaceExplicitName}.{methodName}"));
+                    matchingNonPublic = matchingNonPublic?.Where(p => methodFilter(p));
+                    if (matchingNonPublic != null && matchingNonPublic.Count() == 1) {
+                        methodInfo = matchingNonPublic.First();
+                    }
+                }
+
+                if (methodInfo == null) {
+                    //Now, check the public methods.
+                    var matchingPublic = targetType.GetMethods().Where(p => p.Name.Equals(methodName)); ; //By default, it will return public instance methods.
+                    matchingPublic = matchingPublic?.Where(p => methodFilter(p));
+                    if (matchingPublic != null && matchingPublic.Count() == 1) {
+                        methodInfo = matchingPublic.First();
+                    }
+                }
+                return Task.FromResult(methodInfo);
+            } catch (Exception ex) {
+                throw;
+            }
+
         }
     }
 }
