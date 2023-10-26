@@ -81,6 +81,7 @@ namespace Haley.Services {
                     //We can directly set the value.
                     wrap.ConfigJsonData = contents;
                     wrap.Config = ConvertStringToConfig(contents, wrap.Type);
+                    this.ConfigLoaded?.Invoke(nameof(LoadConfig), wrap.Type);
                     ////Upon loading the internal data from local directory, we need to notify others.
                     if (!notifyConsumers) return true;
                     await NotifyConsumers(wrap);

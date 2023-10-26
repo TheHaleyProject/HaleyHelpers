@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Haley.Enums {
     internal enum ConfigMethods {
-        ProviderOnSaving,
+        ProviderGetLatest,
         ProviderPrepareDefault,
         ConsumerUpdateConfig,
     }

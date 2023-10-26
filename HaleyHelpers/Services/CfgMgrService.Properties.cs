@@ -49,6 +49,9 @@ namespace Haley.Services {
 
         #endregion PROPERTIES
 
+        public EventHandler<Type> ConfigLoaded { get; set; }
+        public EventHandler<Type> ConfigSaved { get; set; }
+
         static ConcurrentDictionary<string, MethodInfo> _methodCache = new ConcurrentDictionary<string, MethodInfo>();
     }
 }

@@ -124,25 +124,25 @@ namespace Haley.Services {
             try {
                 IConfig cfgToSave = null;
 
-                //Decide if you want to ask from provider or a silent save.
+                //Decide if you want to ask from provider or a silent save. Even if provider doesn't give any proper value, we need fallback to existing data. Either of the two should be saved to the directory.
                 if (askProvider) {
                     //From the wrap, get the provider and ask for updated config upon saving. If that seems to be null
-                    var mInfo = await GetProviderMethodInfo(wrap, ConfigMethods.ProviderOnSaving);
-                    if (mInfo == null) return false;
-                    var toSave = await wrap.Provider.InvokeMethod(mInfo); //Now take this config and update internal and save to directory.
-                    if (toSave == null) return false;
-                    
-                    if (!(toSave is IConfig _cfgToSave)) {
-                        //todo: Should we delete the local file?? may be the null return was intentional.
-                        return false;
-                    }
+                    do {
+                        var mInfo = await GetProviderMethodInfo(wrap, ConfigMethods.ProviderGetLatest);
+                        if (mInfo == null) break;
+                        var toSave = await wrap.Provider.InvokeMethod(mInfo); //Now take this config and update internal and save to directory.
+                        if (toSave == null) break;
 
-                    cfgToSave = _cfgToSave;
-                } else {
-                    cfgToSave = wrap.Config; //already existing data.
-                }
-             
-                if (cfgToSave == null) return false;
+                        if (!(toSave is IConfig _cfgToSave)) break;
+
+                        cfgToSave = _cfgToSave;
+                    } while (false);
+                } 
+                
+                //Even after asking provider, if our value is still null, we go ahead with existing value
+                if (cfgToSave == null) cfgToSave = wrap.Config; //already existing data.
+                if (cfgToSave == null) return false; //Even our in-memory data is null, no need to try saving this information.
+
                 string tosaveJson = GetConfigJsonData(cfgToSave);
                 //This serialized json, save it back to 
                 if (string.IsNullOrWhiteSpace(tosaveJson)) return false;
@@ -156,6 +156,8 @@ namespace Haley.Services {
                 }
 
                 //Rise the event first.
+                //As of now, the file has been saved to the folder.
+                this.ConfigSaved?.Invoke(nameof(SaveInternal), wrap.Type);
 
                 if(notifyConsumers && wrap.Consumers != null) {
                    await NotifyConsumers(wrap);

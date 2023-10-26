@@ -49,7 +49,7 @@ namespace Haley.Services {
         void SetExplicitNames<T>(ConfigWrapper wrap, bool forceUpdate = false) where T : class, IConfig, new() {
 
             if (wrap.Type != typeof(T)) throw new ArgumentException("Config Type inside the wrapper is not matching with the type of generic argument");
-            //Get the explicit names.
+            //Get the explicit names to serach for the explicitly set interface names via reflection.
             if (string.IsNullOrWhiteSpace(wrap.ConsumerExplicitName) || forceUpdate) {
                 wrap.SetExplicitConsumerName(typeof(IConfigConsumer<T>).FullName);
             }
@@ -65,9 +65,10 @@ namespace Haley.Services {
                 if (wrap.Type != typeof(T)) throw new ArgumentException("Config Type inside the wrapper is not matching with the type of generic argument");
                 await NotifyConsumersInternal(wrap, async (consumer) => {
                     try {
-                        //Do not send wrapper direclty, it can be easily modified. Send only a copy.
+                        //The Config itself is a reference type object. So, sending direct value will result in undesired results, in case the user decides to make direct modification
+                        //Send only a copy.
                         var toshare = ConvertStringToConfig(wrap.ConfigJsonData, wrap.Type) as T;
-                        await (consumer as IConfigConsumer<T>).OnConfigUpdated(toshare);
+                        await (consumer as IConfigConsumer<T>).OnConfigChanged(toshare);
                     } catch (Exception ex) {
                         HandleException(ex);
                     }
@@ -141,6 +142,8 @@ namespace Haley.Services {
                         //Try to load from directory. Even if that is empty, then in upcoming steps we will try to prepare default config.
                         if(LoadConfigFromDirectory(wrap, out var contents) && !string.IsNullOrWhiteSpace(contents)) {
                             wrap.Config = ConvertStringToConfig(contents, wrap.Type);
+                            wrap.ConfigJsonData = contents;
+                            this.ConfigLoaded?.Invoke(nameof(RegisterInternal), wrap.Type);
                         }
                     }
                     wrap.Provider = provider;
@@ -166,7 +169,7 @@ namespace Haley.Services {
                         try {
                             if (!silentRegistration && wrap.Config != null) {
                                 //Inform the consumers right away.
-                                if (!await consumer.OnConfigUpdated(wrap.Config as T)) {
+                                if (!await consumer.OnConfigChanged(wrap.Config as T)) {
                                     updateFailed = true; //Even one failure will flag this up. Currently not used. May be used in future.
                                 };
                             }

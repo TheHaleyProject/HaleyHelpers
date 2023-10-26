@@ -25,7 +25,7 @@ namespace Haley.Services {
 
         #region Tunneling Call
         public bool TryRegister<T>(T config, IConfigProvider<T> provider, List<IConfigConsumer<T>> consumers, bool replaceProviderIfExists = false, bool silentRegistration = true) where T : class, IConfig, new() {
-            return RegisterInternal<T>(config, provider, consumers, replaceProviderIfExists, true).Result;
+            return RegisterInternal<T>(config, provider, consumers, replaceProviderIfExists, silentRegistration).Result;
         }
         #endregion
         public bool TryRegister<T>(T config, IConfigProvider<T> provider, bool replaceProviderIfExists = false) where T : class, IConfig,new() {

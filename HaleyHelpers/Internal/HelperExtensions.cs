@@ -12,13 +12,13 @@ namespace Haley.Internal {
             switch (method) {
 
                 case ConfigMethods.ConsumerUpdateConfig:
-                    methodName = nameof(IConfigConsumer<ConfigBase>.OnConfigUpdated);
+                    methodName = nameof(IConfigConsumer<ConfigBase>.OnConfigChanged);
                     break;
                 case ConfigMethods.ProviderPrepareDefault:
                     methodName = nameof(IConfigProvider<ConfigBase>.PrepareDefaultConfig);
                     break;
-                case ConfigMethods.ProviderOnSaving:
-                    methodName = nameof(IConfigProvider<ConfigBase>.FetchConfigToSave);
+                case ConfigMethods.ProviderGetLatest:
+                    methodName = nameof(IConfigProvider<ConfigBase>.GetLatestConfig);
                     break;
             }
             return methodName;
