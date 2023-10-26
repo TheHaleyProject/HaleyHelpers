@@ -20,11 +20,11 @@ namespace ConsoleTest.Helpers {
         }
 
         public Task<ConfigOne> PrepareDefaultConfig() {
-            return Task.FromResult(new ConfigOne() { Id = "Really"});
+            return Task.FromResult(new ConfigOne() { Id = "Default"});
         }
 
         async Task<ConfigTwo> IConfigProvider<ConfigTwo>.PrepareDefaultConfig() {
-            return null;
+             return null;
         }
 
 
@@ -33,7 +33,7 @@ namespace ConsoleTest.Helpers {
         }
 
         public async Task EmptyTest() {
-            string msg = "nopthing";
+            string msg = "nothing";
             return;
         }
 

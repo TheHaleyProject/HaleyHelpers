@@ -113,6 +113,7 @@ namespace Haley.Utils
             if (input is MethodInfo) throw new ArgumentException("Cannot invoke method directly on MethodInfo object type.");
             try {
                 var response = await input.InvokeMethod(method, argument); //Result type is important
+                if (response == null) return default(T);
                 return await GenerateReturnParam<T>(response, method.Name);
             } catch (Exception ex) {
                 throw;
@@ -125,7 +126,9 @@ namespace Haley.Utils
                 if (task == null) throw new ArgumentException($@"Unable to convert the returned object of type {response.GetType()} to {typeof(T)} from the method {method_name} ");
                 return await task;
             }
-            return (T)response;
+
+            if (response.GetType() == typeof(T)) return (T)response;
+            return default(T);
         }
     }
 }

@@ -22,6 +22,100 @@ namespace Haley.Services {
 
     public partial class ConfigManagerService : IConfigService {
 
+        private async Task<T> GetDefaultConfig<T>() where T : class, IConfig, new() {
+            try {
+                //var dummyme = await GetMethodInfo(wrap.Provider.GetType(), "DummyMethod", wrap.ProviderExplicitName);
+                //var res = wrap.Provider.InvokeMethod(dummyme, null);
+                if (!GetWrapper<T>(out var wrap)) return null;
+                var method = await GetMethodInfo(wrap.Provider.GetType(), ConfigMethods.ProviderPrepareDefault.MethodName(), wrap.ProviderExplicitName);
+                return await wrap.Provider.InvokeMethod<T>(method); //We are expecting an output of type T
+            } catch (Exception ex) {
+                return new T(); //on failure, just create the default.
+            }
+        }
+
+        private async Task<IConfig> GetDefaultConfig(ConfigWrapper wrap) {
+            try {
+                //var dummyme = await GetMethodInfo(wrap.Provider.GetType(), "DummyMethod", wrap.ProviderExplicitName);
+                //var res = wrap.Provider.InvokeMethod(dummyme, null);
+                var method = await GetMethodInfo(wrap.Provider.GetType(), ConfigMethods.ProviderPrepareDefault.MethodName(), wrap.ProviderExplicitName);
+                return await wrap.Provider.InvokeMethod(method) as IConfig; //We are expecting an output of type T
+            } catch (Exception ex) {
+                HandleException(ex);
+                return null;
+            }
+        }
+
+        void SetExplicitNames<T>(ConfigWrapper wrap, bool forceUpdate = false) where T : class, IConfig, new() {
+
+            if (wrap.Type != typeof(T)) throw new ArgumentException("Config Type inside the wrapper is not matching with the type of generic argument");
+            //Get the explicit names.
+            if (string.IsNullOrWhiteSpace(wrap.ConsumerExplicitName) || forceUpdate) {
+                wrap.SetExplicitConsumerName(typeof(IConfigConsumer<T>).FullName);
+            }
+
+            if (string.IsNullOrWhiteSpace(wrap.ProviderExplicitName) || forceUpdate) {
+                wrap.SetExplicitProviderName(typeof(IConfigProvider<T>).FullName);
+            }
+        }
+
+        async Task NotifyConsumers<T>(ConfigWrapper wrap) where T : class, IConfig, new() {
+            try {
+                if (wrap == null) return;
+                if (wrap.Type != typeof(T)) throw new ArgumentException("Config Type inside the wrapper is not matching with the type of generic argument");
+                await NotifyConsumersInternal(wrap, async (consumer) => {
+                    try {
+                        //Do not send wrapper direclty, it can be easily modified. Send only a copy.
+                        var toshare = ConvertStringToConfig(wrap.ConfigJsonData, wrap.Type) as T;
+                        await (consumer as IConfigConsumer<T>).OnConfigUpdated(toshare);
+                    } catch (Exception ex) {
+                        HandleException(ex);
+                    }
+                });
+            } catch (Exception) {
+                throw;
+            }
+        }
+
+        async Task NotifyConsumers(ConfigWrapper wrap) {
+            try {
+                if (wrap == null) return;
+               await NotifyConsumersInternal(wrap, async (consumer) => {
+                   try {
+                       var method = GetConsumerMethodInfo(consumer, wrap.ConsumerExplicitName, wrap.Type);
+                       var toshare = ConvertStringToConfig(wrap.ConfigJsonData, wrap.Type);
+                       await (consumer.InvokeMethod(method, toshare));
+                   } catch (Exception ex) {
+                       HandleException(ex);
+                   }
+               });
+            } catch (Exception) {
+                throw;
+            }
+        }
+
+        async Task NotifyConsumersInternal(ConfigWrapper wrap, Action<object> notifyInvoker, bool parallely = false) {
+            try {
+                bool updateFailed = false;
+                if (wrap == null || wrap.Consumers == null || notifyInvoker == null) return;
+
+                if (parallely) {
+                    Parallel.ForEach(wrap.Consumers.Values, (p) => notifyInvoker(p));
+                } else {
+                    foreach (var consumer in wrap.Consumers.Values) {
+                        try {
+                            if (consumer == null) continue;
+                            notifyInvoker.BeginInvoke(consumer, null, null);
+                        } catch (Exception) {
+                            continue;
+                        }
+                    }
+                }
+            } catch (Exception) {
+                throw;
+            }
+        }
+
         private async Task<bool> RegisterInternal<T>(T config, IConfigProvider<T> provider, List<IConfigConsumer<T>> consumers, bool replaceProviderIfExists, bool silentRegistration) where T : class, IConfig, new() {
             //Convert incoming inputs into a Config Wrapper and deal internally.
             try {
@@ -32,14 +126,7 @@ namespace Haley.Services {
 
                 if (!GetWrapper<T>(out var wrap, true)) return false; //Create if not exists.
 
-                //Get the explicit names.
-                if (string.IsNullOrWhiteSpace(wrap.ConsumerExplicitName)) {
-                    wrap.SetExplicitConsumerName(typeof(IConfigConsumer<T>).FullName);
-                }
-
-                if (string.IsNullOrWhiteSpace(wrap.ProviderExplicitName)) {
-                    wrap.SetExplicitProviderName(typeof(IConfigProvider<T>).FullName);
-                }
+                SetExplicitNames<T>(wrap,false); //ForceUpdate is expensive.
 
                 if (provider != null && (provider.UniqueId == null || provider.UniqueId == Guid.Empty)) {
                     provider.UniqueId = Guid.NewGuid();
@@ -52,6 +139,9 @@ namespace Haley.Services {
                         wrap.Config = config; //Could be null as well.
                     } else {
                         //Try to load from directory. Even if that is empty, then in upcoming steps we will try to prepare default config.
+                        if(LoadConfigFromDirectory(wrap, out var contents) && !string.IsNullOrWhiteSpace(contents)) {
+                            wrap.Config = ConvertStringToConfig(contents, wrap.Type);
+                        }
                     }
                     wrap.Provider = provider;
                 } else if (replaceProviderIfExists && provider != null) {
@@ -61,15 +151,7 @@ namespace Haley.Services {
 
                 //Handle Initial Config.
                 if (wrap.Config == null && wrap.Provider != null) {
-                    try {
-                        //var dummyme = await GetMethodInfo(wrap.Provider.GetType(), "DummyMethod", wrap.ProviderExplicitName);
-                        //var res = wrap.Provider.InvokeMethod(dummyme, null);
-
-                        var method = await GetMethodInfo(wrap.Provider.GetType(), ConfigMethods.ProviderPrepareDefault.MethodName(), wrap.ProviderExplicitName);
-                        wrap.Config = await wrap.Provider.InvokeMethod<T>(method); //We are expecting an output of type T
-                    } catch (Exception ex) {
-                        wrap.Config = new T(); //on failure, just create the default.
-                    }
+                    wrap.Config = await GetDefaultConfig<T>();
                 }
 
                 bool updateFailed = false;
@@ -103,14 +185,6 @@ namespace Haley.Services {
             return await GetMethodInfo(wrap.Provider.GetType(), method.MethodName(), wrap.ProviderExplicitName);
         }
 
-        MethodInfo GetConsumerMethodInfo(ConfigWrapper wrap, string consumerId,out object consumer) {
-            consumer = null;
-            if (string.IsNullOrWhiteSpace(consumerId)) return null;
-            if (!wrap.Consumers.TryGetValue(consumerId, out var _consumer)) return null;
-            consumer = _consumer; //Set this consumer.
-            return GetMethodInfo(consumer.GetType(), ConfigMethods.ConsumerUpdateConfig.MethodName(), wrap.ConsumerExplicitName).Result;
-        }
-
         MethodInfo GetConsumerMethodInfo(object consumer, string consumerExplicitName, Type argsType) {
             if (consumer == null) return null;
             return GetMethodInfo(consumer.GetType(), ConfigMethods.ConsumerUpdateConfig.MethodName(), consumerExplicitName,argsType).Result;
@@ -135,16 +209,34 @@ namespace Haley.Services {
         }
         private IConfig ConvertStringToConfig(string contents, Type configType) {
             IConfig data = null;
+            if (string.IsNullOrWhiteSpace(contents)) return null;
             try {
                 if (UseCustomSerializers && _cfgDeserializer != null) {
-                    data = _cfgDeserializer.Invoke(contents);
-                } else {
+                    data = _cfgDeserializer.Invoke(configType, contents);
+                } 
+                if (data == null) {
                     data = contents.FromJson(configType) as IConfig;
                 }
             } catch (Exception) {
             }
             return data;
         }
+
+        private string ConvertConfigToString(IConfig config, Type configType) {
+            string data = null;
+            if (config == null) return string.Empty;
+            try {
+                if (UseCustomSerializers && _cfgDeserializer != null) {
+                    data = _cfgSerializer.Invoke(configType, config);
+                }
+                if (data == null) {
+                    data = config.ToJson();
+                }
+            } catch (Exception) {
+            }
+            return data;
+        }
+
         bool GetWrapper<T>(out ConfigWrapper wrapper,bool createIfNotExists = false) {
             wrapper = null;
             var configType = typeof(T);

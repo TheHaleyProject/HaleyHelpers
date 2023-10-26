@@ -25,7 +25,6 @@ namespace Haley.Models
         public string Name => Type?.Name;
         //This will also be the Generic Argument Name
         public object Provider { get; set; }
-
         public string ProviderExplicitName { get; set; }
         public string StorageDirectory { get; set; }
         public Type Type { get; } //If config is null, we will not be able to ascertain the type.
