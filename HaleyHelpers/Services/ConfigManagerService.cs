@@ -59,23 +59,27 @@ namespace Haley.Services {
         #endregion
 
         #region Reset
-        public async Task ResetConfig<T>() where T : class, IConfig, new() {
+        public async Task ResetConfig<T>(bool notifyConsumers = true) where T : class, IConfig, new() {
             if (!GetWrapper<T>(out var wrap)) return;
             wrap.Config = await GetDefaultConfig<T>(); //First get the default config.
             if (wrap.Config != null) {
                 wrap.ConfigJsonData = ConvertConfigToString(wrap.Config, wrap.Type);
                 //Now notify all consumers.
-                await NotifyConsumers(wrap);
+                if (notifyConsumers) {
+                    await NotifyConsumers(wrap);
+                }
             }
         }
 
-        public async Task ResetAllConfig() {
+        public async Task ResetAllConfig(bool notifyConsumers = true) {
             foreach (var wrap in _configs.Values) {
                 try {
                     wrap.Config = await GetDefaultConfig(wrap); //First get the default config.
                     wrap.ConfigJsonData = ConvertConfigToString(wrap.Config, wrap.Type);
                     //Now notify all consumers.
-                    await NotifyConsumers(wrap);
+                    if (notifyConsumers) {
+                        await NotifyConsumers(wrap);
+                    }
                 } catch (Exception ex) {
                     HandleException(ex);
                     continue;

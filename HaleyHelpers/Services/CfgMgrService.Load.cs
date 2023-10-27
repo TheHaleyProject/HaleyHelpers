@@ -32,11 +32,11 @@ namespace Haley.Services {
             return GetConfigCopy<T>(wrap);
         }
 
-        private T GetConfigCopy<T>(ConfigWrapper wrap) where T : class,IConfig,new() {
+        T GetConfigCopy<T>(ConfigWrapper wrap) where T : class,IConfig,new() {
             return GetConfigCopy(wrap) as T;
         }
 
-        private IConfig GetConfigCopy(ConfigWrapper wrap) {
+        IConfig GetConfigCopy(ConfigWrapper wrap) {
             if (wrap.Config == null) return null;
             if (string.IsNullOrWhiteSpace(wrap.ConfigJsonData)) {
                 wrap.ConfigJsonData = ConvertConfigToString(wrap.Config, wrap.Type);
@@ -44,20 +44,20 @@ namespace Haley.Services {
             return ConvertStringToConfig(wrap.ConfigJsonData, wrap.Type); //This will create a copy
         }
 
-        public async Task LoadAllConfig(bool loadParallely = true) {
+        public async Task LoadAllConfig(bool notifyConsumers = true, bool loadParallely = true) {
             if (loadParallely) {
-                Parallel.ForEach(_configs.Values, async (p) => await LoadConfig(p));
+                Parallel.ForEach(_configs.Values, async (p) => await LoadConfig(p,notifyConsumers));
             } else {
                 foreach (var _wrapper in _configs.Values) {
-                    await LoadConfig(_wrapper);
+                    await LoadConfig(_wrapper,notifyConsumers);
                 }
             }
         }
 
-        public async Task LoadConfig<T>() where T : class, IConfig, new() {
+        public async Task LoadConfig<T>(bool notifyConsumers = true) where T : class, IConfig, new() {
             //Load from Directory, update 
             if (!GetWrapper<T>(out var wrap, true)) return; //We will create the wrapper if not exists.
-            await LoadConfig(wrap);
+            await LoadConfig(wrap, notifyConsumers);
             return;
         }
 

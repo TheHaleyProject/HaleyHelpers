@@ -123,7 +123,7 @@ namespace Haley.Services {
         private async Task<bool> SaveInternal(ConfigWrapper wrap,bool notifyConsumers = true, bool writeToDirectory = true, bool askProvider = true) {
             try {
                 IConfig cfgToSave = null;
-
+                bool memCfgUpdated = false;
                 //Decide if you want to ask from provider or a silent save. Even if provider doesn't give any proper value, we need fallback to existing data. Either of the two should be saved to the directory.
                 if (askProvider) {
                     //From the wrap, get the provider and ask for updated config upon saving. If that seems to be null
@@ -136,6 +136,7 @@ namespace Haley.Services {
                         if (!(toSave is IConfig _cfgToSave)) break;
 
                         cfgToSave = _cfgToSave;
+                        memCfgUpdated = true; //We have 
                     } while (false);
                 } 
                 
@@ -156,8 +157,11 @@ namespace Haley.Services {
                 }
 
                 //Rise the event first.
-                //As of now, the file has been saved to the folder.
-                this.ConfigSaved?.Invoke(nameof(SaveInternal), wrap.Type);
+                if (memCfgUpdated) {
+                    //As of now, the file has been saved to the folder.
+                    this.ConfigSaved?.Invoke(nameof(SaveInternal), wrap.Type);
+                }
+               
 
                 if(notifyConsumers && wrap.Consumers != null) {
                    await NotifyConsumers(wrap);
