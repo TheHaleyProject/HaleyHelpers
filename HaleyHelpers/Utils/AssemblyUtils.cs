@@ -98,6 +98,10 @@ namespace Haley.Utils
                             return (target_attribute as AssemblyCompanyAttribute)?.Company;
                         case nameof(AssemblyCopyrightAttribute):
                             return (target_attribute as AssemblyCopyrightAttribute)?.Copyright;
+                        case nameof(AssemblyVersionAttribute):
+                            return (target_attribute as AssemblyVersionAttribute)?.Version;
+                        case nameof(AssemblyFileVersionAttribute):
+                            return (target_attribute as AssemblyFileVersionAttribute)?.Version;
                         case nameof(AssemblyProductAttribute):
                             return (target_attribute as AssemblyProductAttribute)?.Product;
                         case nameof(AssemblyDescriptionAttribute):
