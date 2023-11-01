@@ -10,7 +10,7 @@ namespace ConsoleTest.Helpers {
     internal class ConfigConsumerOne : IConfigConsumer<ConfigTwo> {
         public Guid UniqueId { get; set; }
 
-        public Task<bool> OnConfigUpdated(ConfigTwo config) {
+        public Task<bool> OnConfigChanged(ConfigTwo config) {
             return Task.FromResult(true);
         }
     }

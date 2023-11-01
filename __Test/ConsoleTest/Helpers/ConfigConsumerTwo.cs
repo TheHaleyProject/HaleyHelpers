@@ -10,11 +10,11 @@ namespace ConsoleTest.Helpers {
     public class ConfigConsumerTwo : IConfigConsumer<ConfigOne>, IConfigConsumer<ConfigTwo> {
         public Guid UniqueId { get; set; }
 
-        public Task<bool> OnConfigUpdated(ConfigOne config) {
+        public Task<bool> OnConfigChanged(ConfigOne config) {
             return Task.FromResult(true);
         }
 
-        public Task<bool> OnConfigUpdated(ConfigTwo config) {
+        public Task<bool> OnConfigChanged(ConfigTwo config) {
             return Task.FromResult(true);
         }
     }

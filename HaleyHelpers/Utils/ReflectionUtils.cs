@@ -96,12 +96,12 @@ namespace Haley.Utils
                 }
 
                 //Remember for void methods, response will be null
-
-                if (response != null && response.GetType().BaseType == typeof(Task)) {
-                    var  task = response as Task;
-                    if (task == null) return response;
-                    await task; // await this to be completed.
-                    return task.GetType().GetProperty("Result")?.GetValue(task);
+                if (response != null) {
+                    var task = response as Task;
+                    if (task != null) {
+                        await task; // await this to be completed.
+                        return task.GetType().GetProperty("Result")?.GetValue(task);
+                    }
                 }
                 return response;
             } catch (Exception ex) {
@@ -121,13 +121,23 @@ namespace Haley.Utils
         }
 
         static async Task<T> GenerateReturnParam<T>(object response, string method_name) {
-            if (response != null && response.GetType().BaseType == typeof(Task)) {
-                var task = response as Task<T>;
-                if (task == null) throw new ArgumentException($@"Unable to convert the returned object of type {response.GetType()} to {typeof(T)} from the method {method_name} ");
-                return await task;
+            try {
+                if (response == null) return default(T);
+                //Check if we can directly return it.
+                if (response.GetType() == typeof(T)) return (T)response;
+                //Check if this is a task
+                var task = response as Task;
+                if (task != null) {
+                    await task; // await this to be completed.
+                    var result = task.GetType().GetProperty("Result")?.GetValue(task);
+                    if (result != null && result.GetType() == typeof(T)) {
+                        return (T)result;
+                    }
+                }
+                //Fall back
+            } catch (Exception) {
+                throw;
             }
-
-            if (response.GetType() == typeof(T)) return (T)response;
             return default(T);
         }
     }

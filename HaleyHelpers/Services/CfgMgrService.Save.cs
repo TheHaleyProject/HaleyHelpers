@@ -120,7 +120,7 @@ namespace Haley.Services {
             return finalPath;
         }
 
-        private async Task<bool> SaveInternal(ConfigWrapper wrap,bool notifyConsumers = true, bool writeToDirectory = true, bool askProvider = true) {
+        private async Task<bool>  SaveInternal(ConfigWrapper wrap,bool notifyConsumers = true, bool writeToDirectory = true, bool askProvider = true) {
             try {
                 IConfig cfgToSave = null;
                 bool memCfgUpdated = false;

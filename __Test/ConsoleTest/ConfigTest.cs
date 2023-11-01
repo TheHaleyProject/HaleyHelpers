@@ -19,8 +19,8 @@ namespace ConsoleTest {
         public void RegisterTest() {
             //RegisterTest all the configurations.
             Cfg.TryRegister<ConfigOne>(); //RegisterTest Config
-            Cfg.TryRegister<ConfigTwo>(_commonProvider, new List<IConfigConsumer<ConfigTwo>>() { _consumerTwo}, true);
-            Cfg.TryRegisterConsumer<ConfigTwo>(_consumerOne);
+            //Cfg.TryRegister<ConfigTwo>(_commonProvider, new List<IConfigConsumer<ConfigTwo>>() { _consumerTwo}, true);
+            //Cfg.TryRegisterConsumer<ConfigTwo>(_consumerOne);
             Cfg.TryRegisterConsumer<ConfigOne>(_consumerThree);
             Cfg.TryRegisterOrUpdateProvider<ConfigOne>(_commonProvider); 
         }
