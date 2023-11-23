@@ -53,7 +53,7 @@ namespace Haley.Services {
         }
 
         public IConfigService SetStorageDirectory<T>(string storageDirectory) where T : class, IConfig, new() {
-            if (GetWrapper<T>(out var wrap)) {
+            if (GetWrapper<T>(out var wrap, true)) {
                 wrap.StorageDirectory = storageDirectory; //should be a path. Could be null as well, if user decides to reset.
                 //if the storage directory is a file name, then reset it
                 if (!string.IsNullOrWhiteSpace(wrap.StorageDirectory)) {

@@ -17,10 +17,11 @@ namespace ConsoleTest {
         ConfigConsumerThree _consumerThree = new ConfigConsumerThree(); //Could be one viewmodel which can register by its own
         ConfigConsumerTwo _consumerTwo = new ConfigConsumerTwo(); //Could be one viewmodel which can register by its own
         public void RegisterTest() {
+            string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Di", "TemplateEditor", "Configs");
             //RegisterTest all the configurations.
-            Cfg.TryRegister<ConfigOne>(); //RegisterTest Config
-            //Cfg.TryRegister<ConfigTwo>(_commonProvider, new List<IConfigConsumer<ConfigTwo>>() { _consumerTwo}, true);
-            //Cfg.TryRegisterConsumer<ConfigTwo>(_consumerOne);
+            Cfg.SetStorageDirectory<ConfigOne>(path).TryRegister<ConfigOne>(); //RegisterTest Config
+            Cfg.TryRegister<ConfigTwo>(_commonProvider, new List<IConfigConsumer<ConfigTwo>>() { _consumerTwo }, true);
+            Cfg.TryRegisterConsumer<ConfigTwo>(_consumerOne);
             Cfg.TryRegisterConsumer<ConfigOne>(_consumerThree);
             Cfg.TryRegisterOrUpdateProvider<ConfigOne>(_commonProvider); 
         }

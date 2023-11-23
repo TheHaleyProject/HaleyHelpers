@@ -3,10 +3,12 @@ using Haley.Utils;
 using Haley.Enums;
 using ConsoleTest;
 using ConsoleTest.Models;
+using Haley.Abstractions;
+
 
 var cfgTest = new ConfigTest();
-
 cfgTest.RegisterTest();
+
 bool flag = true;
 do {
     Console.WriteLine($@"Enter an option to proceed.");

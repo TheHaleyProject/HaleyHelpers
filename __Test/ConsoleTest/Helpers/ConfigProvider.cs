@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 
 namespace ConsoleTest.Helpers {
 
-   // null is the default value of reference-type variables. So, new ConfigOne() will be null.
-    //public class ConfigProvider : IConfigProvider<ConfigOne>, IConfigProvider<ConfigTwo> {
-    public class ConfigProvider : IConfigProvider<ConfigOne> {
+    // null is the default value of reference-type variables. So, new ConfigOne() will be null.
+    public class ConfigProvider : IConfigProvider<ConfigOne>, IConfigProvider<ConfigTwo> {
+        //public class ConfigProvider : IConfigProvider<ConfigOne> {
         public Guid UniqueId { get; set; }
         public async Task<ConfigOne> GetLatestConfig() {
             var cfg = new ConfigOne();
@@ -26,14 +26,14 @@ namespace ConsoleTest.Helpers {
             return Task.FromResult(new ConfigOne() { Id = "Default"});
         }
 
-        //async Task<ConfigTwo> IConfigProvider<ConfigTwo>.PrepareDefaultConfig() {
-        //     return null;
-        //}
+        async Task<ConfigTwo> IConfigProvider<ConfigTwo>.PrepareDefaultConfig() {
+            return null;
+        }
 
 
-        //Task<ConfigTwo> IConfigProvider<ConfigTwo>.GetLatestConfig() {
-        //    return Task.FromResult(new ConfigTwo() {Message="Ola.. Welcome.." });
-        //}
+        Task<ConfigTwo> IConfigProvider<ConfigTwo>.GetLatestConfig() {
+            return Task.FromResult(new ConfigTwo() { Message = "Ola.. Welcome.." });
+        }
 
         public async Task EmptyTest() {
             string msg = "nothing";
