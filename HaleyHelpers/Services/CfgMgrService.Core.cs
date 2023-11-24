@@ -76,7 +76,7 @@ namespace Haley.Services {
                 }
 
                 //Process Provider and Config
-                if (firstEntry) {
+                if (firstEntry || wrap.LoadPending) {
                     //For first registration, always give preference to loading config from the local directory, if not prepare default config.
                     if (config != null) {
                         wrap.Config = config; //Could be null as well.
@@ -88,8 +88,16 @@ namespace Haley.Services {
                             this.ConfigLoaded?.Invoke(nameof(RegisterInternal), wrap.Type);
                         }
                     }
-                    wrap.Provider = provider;
-                } else if (replaceProviderIfExists && provider != null) {
+
+                    if (firstEntry || wrap.Provider == null) {
+                        //Only replace for first entry but not for the loadpending calls.
+                        wrap.Provider = provider;
+                    }
+
+                    if (wrap.LoadPending) {
+                        wrap.LoadPending = false; //whatever the case, we reset it.
+                    }
+                } else if(replaceProviderIfExists && provider != null) {
                     //Sometimes, we might be calling this method directly for registering the consumers as well. In those cases, we should not replace the provider (which could be null)
                     wrap.Provider = provider; //Only replace provider, if the argument has been set.
                 }

@@ -16,7 +16,7 @@ namespace Haley.Models
         string _explicitConsumerName;
         string _explicitProviderFullName;
         string _explicitProviderName;
-        public ConfigWrapper(Type wrapperType) { Type = wrapperType; }
+        public ConfigWrapper(Type wrapperType) { Type = wrapperType; LoadPending = false; }
 
         public IConfig Config { get; internal set; }
         public string ConsumerExplicitName { get; set; }
@@ -27,6 +27,7 @@ namespace Haley.Models
         public object Provider { get; set; }
         public string ProviderExplicitName { get; set; }
         public string StorageDirectory { get; set; }
+        public bool LoadPending { get; set; }
         public Type Type { get; } //If config is null, we will not be able to ascertain the type.
                                   //Very important to internally set this. As this is a reference type, if we allow this to be publically set, then even consumers can directly update the values.
         internal string ConfigJsonData { get; set; }

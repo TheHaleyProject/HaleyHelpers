@@ -62,6 +62,7 @@ namespace Haley.Services {
                         wrap.StorageDirectory = Path.GetDirectoryName(wrap.StorageDirectory); //Just get the base path of the provided value.
                     }
                 }
+                wrap.LoadPending = true;
             }
             return this;
         }
