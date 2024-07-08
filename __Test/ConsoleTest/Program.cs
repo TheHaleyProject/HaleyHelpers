@@ -1,5 +1,5 @@
 ﻿// See https://aka.ms/new-console-template for more information
-using Haley.Utils;
+using Haley.Services;
 using Haley.Enums;
 using ConsoleTest;
 using ConsoleTest.Models;

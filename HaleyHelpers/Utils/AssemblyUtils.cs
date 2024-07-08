@@ -71,11 +71,15 @@ namespace Haley.Utils
             }
         }
 
-        public static string GetBaseDirectory(Assembly assembly = null) {
+        public static string GetBaseDirectory(Assembly assembly = null,string parentFolder = null) {
             try {
                 var filepath = GetBasePath(assembly);
                 if (filepath == null) return null;
-                return Path.GetDirectoryName(filepath);
+                string result = Path.GetDirectoryName(filepath);
+                if (!string.IsNullOrWhiteSpace(parentFolder)) {
+                    result = Path.Combine(result,parentFolder);
+                }
+                return result;
             } catch (Exception) {
                 return null;
             }

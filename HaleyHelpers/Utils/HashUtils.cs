@@ -96,13 +96,13 @@ namespace Haley.Utils
             return new Guid(ComputeHash(inputbytes, HashMethod.MD5));
         }
 
-        public static string ComputeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true)
+        public static string ComputeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true,bool removeHypens = false)
         {
             MemoryStream ms = new MemoryStream();
             try
             {
                 buffered_stream.CopyTo(ms);
-                return _convertToString(ComputeHash(ms.ToArray(), method),encodeBase64);
+                return ConvertToString(ComputeHash(ms.ToArray(), method), encodeBase64,removeHypens);
             }
             catch (Exception)
             {
@@ -114,10 +114,10 @@ namespace Haley.Utils
             }
 
         }
-        public static string ComputeHash(string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
+        public static string ComputeHash(string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true, bool removeHypens = false)
         {
             var _to_hash_bytes = Encoding.ASCII.GetBytes(to_hash);
-            return _convertToString(ComputeHash(_to_hash_bytes, method), encodeBase64);
+            return ConvertToString(ComputeHash(_to_hash_bytes, method), encodeBase64,removeHypens);
         }
         public static string ComputeHash(FileInfo file_info, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
         {
@@ -171,7 +171,7 @@ namespace Haley.Utils
             }
             return computed_hash;
         }
-        private static string _convertToString(byte[] input, bool encodeBase64)
+        private static string ConvertToString(byte[] input, bool encodeBase64,bool removeHypens = false)
         {
             switch(encodeBase64)
             {
@@ -179,7 +179,12 @@ namespace Haley.Utils
                     return Convert.ToBase64String(input);
                 default:
                 case false:
-                    return BitConverter.ToString(input);
+                    var result = BitConverter.ToString(input);
+                    if (removeHypens)
+                    {
+                    result = result.Replace("-", "");
+                    }
+                    return result;
             }
         }
         #endregion
