@@ -15,7 +15,7 @@ namespace Haley.Models {
         public string FileExtension { get; protected set; }
         public bool PreferId { get; set; } = true;
         public string RootDirName { get; set; } = "Data";
-        public FileExistsResolveMode ResolveMode { get; set; } = FileExistsResolveMode.Throw;
+        public FileExistsResolveMode ResolveMode { get; set; } = FileExistsResolveMode.ReturnError;
 
         public virtual StorageInput Process() {
             if (PreferId && Id < 1) throw new ArgumentException($@"Invalid Id value : {Id}");

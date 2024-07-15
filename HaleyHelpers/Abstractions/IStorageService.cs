@@ -10,7 +10,7 @@ using System.IO;
 namespace Haley.Abstractions {
     public interface IStorageService {
         //We need Store, Fetch, Delete
-        Task<StorageOutput> Store(StorageInput input, Stream file);
+        Task<FileSaveSummary> Store(StorageInput input, Stream file, int bufferSize = 8192);
         Stream Fetch(StorageInput input);
         bool Delete(StorageInput input);
         bool Exists(StorageInput input);

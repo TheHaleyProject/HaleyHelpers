@@ -10,8 +10,11 @@ using System.Xml;
 
 namespace Haley.Models {
     public class StorageOutput {
-        public bool Status { get; set; }
-        public string StoredPath { get; set; }
-        public StorageOutput(bool status) { Status = status; }
+        public int StoredCount { get; set; }
+        public int FailedCount { get; set; }
+        public string TotalSizeUploaded { get; set; }
+        public Dictionary<string, FileSaveSummary> StoredFilesInfo { get; set; } = new Dictionary<string, FileSaveSummary>();
+        public Dictionary<string, FileSaveSummary> FailedFilesInfo { get; set; } = new Dictionary<string, FileSaveSummary>();
+        public StorageOutput() {  }
     }
 }

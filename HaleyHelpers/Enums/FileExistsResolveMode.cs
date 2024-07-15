@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Haley.Enums {
     public enum FileExistsResolveMode {
         Skip = 0,
-        Throw,
+        ReturnError,
         Replace
     }
 }
