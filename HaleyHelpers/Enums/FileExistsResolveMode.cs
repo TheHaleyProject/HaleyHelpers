@@ -8,6 +8,7 @@ namespace Haley.Enums {
     public enum FileExistsResolveMode {
         Skip = 0,
         ReturnError,
+        ThrowException,
         Replace
     }
 }

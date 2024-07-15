@@ -10,6 +10,7 @@ using System.Xml;
 
 namespace Haley.Models {
     public class StorageOutput {
+        public bool Status { get; set; }
         public int StoredCount { get; set; }
         public int FailedCount { get; set; }
         public string TotalSizeUploaded { get; set; }
