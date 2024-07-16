@@ -40,84 +40,18 @@ namespace Haley.Utils
         }
 
         public static string GetInfo(AssemblyInfo info,Assembly assembly = null) {
-            try {
-                if (assembly == null) assembly = Assembly.GetEntryAssembly();
-                switch (info) {
-                    case AssemblyInfo.Title:
-                        return GetInfo<AssemblyTitleAttribute>(assembly);
-                    case AssemblyInfo.Description:
-                        return GetInfo<AssemblyDescriptionAttribute>(assembly);
-                    case AssemblyInfo.Version:
-                        return assembly.GetName().Version.ToString(); //send version directly
-                    case AssemblyInfo.Product:
-                        return GetInfo<AssemblyProductAttribute>(assembly);
-                    case AssemblyInfo.Copyright:
-                        return GetInfo<AssemblyCopyrightAttribute>(assembly);
-                    case AssemblyInfo.Company:
-                        return GetInfo<AssemblyCompanyAttribute>(assembly); 
-                }
-                return null;
-            } catch (Exception) {
-                return null;
-            }
+            if (assembly == null) assembly = Assembly.GetEntryAssembly();
+            return assembly.GetInfo(info);
         }
 
         public static string GetBasePath (Assembly assembly = null) {
-            try {
-                if (assembly == null) assembly = Assembly.GetEntryAssembly(); //Not the executing assembly. Let us focus on the entry assembly or the main assembly.
-                return new Uri(assembly.Location).LocalPath;
-            } catch (Exception) {
-                return null;
-            }
+            if (assembly == null) assembly = Assembly.GetEntryAssembly(); //Not the executing assembly. Let us focus on the entry assembly or the main assembly.
+            return assembly.GetBasePath();
         }
 
         public static string GetBaseDirectory(Assembly assembly = null,string parentFolder = null) {
-            try {
-                var filepath = GetBasePath(assembly);
-                if (filepath == null) return null;
-                string result = Path.GetDirectoryName(filepath);
-                if (!string.IsNullOrWhiteSpace(parentFolder)) {
-                    result = Path.Combine(result,parentFolder);
-                }
-                return result;
-            } catch (Exception) {
-                return null;
-            }
-        }
-
-        public static string GetInfo<T>(Assembly assembly = null) where T : Attribute {
-            try {
-                if (assembly == null) assembly = Assembly.GetEntryAssembly();
-                object[] attributes = assembly.GetCustomAttributes(typeof(T), false);
-                if (attributes.Length > 0) {
-                    T target_attribute = (T)attributes[0];
-                    switch (typeof(T).Name) {
-                        case nameof(AssemblyTitleAttribute):
-                            var title = (target_attribute as AssemblyTitleAttribute)?.Title;
-                            if (string.IsNullOrWhiteSpace(title)) {
-                                title = Path.GetFileNameWithoutExtension(assembly.CodeBase);
-                            }
-                            return title; //incase title value is empty we get the dll name.
-                        case nameof(AssemblyCompanyAttribute):
-                            return (target_attribute as AssemblyCompanyAttribute)?.Company;
-                        case nameof(AssemblyCopyrightAttribute):
-                            return (target_attribute as AssemblyCopyrightAttribute)?.Copyright;
-                        case nameof(AssemblyVersionAttribute):
-                            return (target_attribute as AssemblyVersionAttribute)?.Version;
-                        case nameof(AssemblyFileVersionAttribute):
-                            return (target_attribute as AssemblyFileVersionAttribute)?.Version;
-                        case nameof(AssemblyProductAttribute):
-                            return (target_attribute as AssemblyProductAttribute)?.Product;
-                        case nameof(AssemblyDescriptionAttribute):
-                            return (target_attribute as AssemblyDescriptionAttribute)?.Description;
-                        case nameof(AssemblyTrademarkAttribute):
-                            return (target_attribute as AssemblyTrademarkAttribute)?.Trademark;
-                    }
-                }
-                return null ;
-            } catch (Exception) {
-                return null;
-            }
+            if (assembly == null) assembly = Assembly.GetEntryAssembly(); //Not the executing assembly. Let us focus on the entry assembly or the main assembly.
+            return assembly.GetBaseDirectory(parentFolder);
         }
     }
 }
