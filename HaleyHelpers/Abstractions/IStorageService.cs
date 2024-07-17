@@ -10,10 +10,10 @@ using System.IO;
 namespace Haley.Abstractions {
     public interface IStorageService {
         //We need Store, Fetch, Delete
-        Task<FileSaveSummary> Upload(StorageInput input, Stream file, int bufferSize = 8192);
-        Stream Download(StorageInput input);
-        bool Delete(StorageInput input);
-        bool Exists(StorageInput input);
-        long GetSize(StorageInput input);
+        Task<FileStorageSummary> Upload(StorageRequest input, Stream file, int bufferSize = 8192);
+        Stream Download(StorageRequest input);
+        bool Delete(StorageRequest input);
+        bool Exists(StorageRequest input);
+        long GetSize(StorageRequest input);
     }
 }

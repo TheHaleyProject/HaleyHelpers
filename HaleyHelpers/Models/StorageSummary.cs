@@ -9,14 +9,13 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public class FileSaveSummary {
-        public long Size { get; set; }
+    public class StorageSummary {
         public bool Status { get; set; }
         public string BasePath { get; set; }
-        public string StoredFileName { get; set; }
-        public string FileName { get; set; }
-        public string Extension { get; set; }
+        public string StoredName { get; set; }
+        public string InputName { get; set; }
         public string Message { get; set; }
-        public FileSaveSummary() {  }
+        protected bool IsDirectory { get; set; } = true;
+        public StorageSummary() {  }
     }
 }
