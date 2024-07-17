@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Haley.Helpers.Services {
+namespace Haley.Services {
     public class StorageManagerService : ConcurrentDictionary<string, IStorageService>, IStorageManager {
        
     }

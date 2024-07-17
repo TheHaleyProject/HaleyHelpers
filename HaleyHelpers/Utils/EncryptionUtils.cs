@@ -10,7 +10,7 @@ using System.Security.Cryptography;
 using System.Security;
 using System.Runtime.InteropServices;
 using System.Xml;
-using Haley.Helpers.Internal;
+using Haley.Internal;
 using Haley.Models;
 
 namespace Haley.Utils

@@ -9,7 +9,7 @@ using System.Xml;
 using Haley.Enums;
 using Haley.Models;
 
-namespace Haley.Helpers.Internal
+namespace Haley.Internal
 {
     internal sealed class EncryptionHelper
     {

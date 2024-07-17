@@ -4,7 +4,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>HaleyProject.snk</AssemblyOriginatorKeyFile>
-    <RootNamespace>Haley.Helpers</RootNamespace>
+    <RootNamespace>Haley</RootNamespace>
     <Description>Contains basic helpers for .NET Framework and Core</Description>
     <Company>TheHaleyProject</Company>
     <Authors>Lingam</Authors>

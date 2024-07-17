@@ -11,7 +11,6 @@ using System.Xml;
 namespace Haley.Models {
     public sealed class FileStorageSummary : StorageSummary {
         public long Size { get; set; }
-        public string Extension { get; set; }
         public FileStorageSummary() { IsDirectory = false;  }
     }
 }
