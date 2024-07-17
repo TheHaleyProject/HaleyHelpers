@@ -74,8 +74,7 @@ namespace Haley.Services {
         }
 
         public async Task<FileStorageSummary> Upload(StorageRequest input, Stream file,int bufferSize = 8192) {
-            //When we try to store something, we should not consider the storedfilename.. it should be generated.
-            input.TargetName = string.Empty; //Precaution
+            input.SanitizeTargetName(); // If a wrong target name is provided, we just reset it.
             //######### UPLOAD HAPPENS ONLY FOR FILES AND NOT FOR FOLDERS ##############.
             input.IsFolder = false; // we are uploading only files.
 

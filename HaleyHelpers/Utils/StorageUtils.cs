@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography.Xml;
 
 namespace Haley.Utils {
@@ -44,6 +45,17 @@ namespace Haley.Utils {
             }
         }
 
+        public static void SanitizeTargetName(this StorageRequest req) {
+            if (string.IsNullOrWhiteSpace(req.TargetName)) return;
+            if (req.Preference == FileNamePreference.Number) {
+                if (long.TryParse(Path.GetFileNameWithoutExtension(req.TargetName), out _)) return;
+            } else {
+                if (Path.GetFileNameWithoutExtension(req.TargetName).IsMD5()) return;
+            }
+            req.TargetName = null; 
+        }
+
+
         public static string GeneratePath(this StorageRequestBase req, string suffix) {
             if (string.IsNullOrWhiteSpace(req.TargetName)) throw new ArgumentException("TargetName is null. Cannot generate TargetPath");
             string fileNameFull = Path.GetFileNameWithoutExtension(req.TargetName);
@@ -77,6 +89,7 @@ namespace Haley.Utils {
 
         internal static DiskStorageRequest ToDiskStorage(this StorageRequest input) {
             var dskReq = new DiskStorageRequest(input);
+            dskReq.SanitizeTargetName(); //Just to ensure we don't make any mistake.
             dskReq?.GenerateTargetPath();
             return dskReq;
         }
