@@ -92,19 +92,24 @@ namespace Haley.Services {
                     return result;
                 }
                 result.TargetName = dReq.TargetName; //this is the name which is used to store the file.. May be id or hash with or without extension.
-                result.BasePath = Path.Combine(BasePath, dReq.RootDir).ToLower(); //Need not show the split. Just keep it as base dir alone.
+                if (!string.IsNullOrWhiteSpace(dReq.RootDir)) {
+                    result.BasePath = Path.Combine(BasePath, dReq.RootDir).ToLower(); //Need not show the split. Just keep it as base dir alone.
+                } else {
+                    result.BasePath = BasePath.ToLower();
+                }
+               
                 string finalPath = Path.Combine(BasePath, dReq.TargetPath); //this includes the split file name.
 
                 if (File.Exists(finalPath)) {
                     switch (input.ResolveMode) {
-                        case FileExistsResolveMode.Skip:
+                        case StorageFileConflict.Skip:
                         result.Status = true;
                         return result; //Skip if it already exists.
-                        case FileExistsResolveMode.ReturnError:
+                        case StorageFileConflict.ReturnError:
                         result.Status = false;
                         result.Message = $@"File already exists";
                         return result;
-                        case FileExistsResolveMode.ThrowException:
+                        case StorageFileConflict.ThrowException:
                         throw new ArgumentException($@"File {dReq.TargetName} already exists in {result.BasePath}");
                     }
                 }

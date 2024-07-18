@@ -5,8 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Haley.Enums {
-    public enum FileNamePreference {
-       Number =0,
-       Hash=1
+    public enum StorageNameSource {
+       Id = 0,
+       Name =1
     }
 }

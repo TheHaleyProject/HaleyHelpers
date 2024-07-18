@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Haley.Enums {
-    public enum FileExistsResolveMode {
+    public enum StorageFileConflict {
         Skip = 0,
         ReturnError,
         ThrowException,

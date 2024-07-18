@@ -13,10 +13,10 @@ namespace Haley.Models {
     public class StorageRequest:StorageRequestBase {
         public string Id { get; set; } //Could be number or string | This is supposedly the parameter key which user provides while making the request.
         public string RawName { get; set; } //Could be a file name (with extension) or a folder name | This will be returned back to the user.
-        public bool ForcedHash { get; set; } = false;
-        public FileNamePreference Preference { get; set; } = FileNamePreference.Number;
-        public FileNameSource Source { get; set; } = FileNameSource.Id;
-        public FileExistsResolveMode ResolveMode { get; set; } = FileExistsResolveMode.ReturnError;
+        public StorageNameHashMode HashMode { get; set; } = StorageNameHashMode.ParseOrCreate;
+        public StorageNamePreference Preference { get; set; } = StorageNamePreference.Number;
+        public StorageNameSource Source { get; set; } = StorageNameSource.Id;
+        public StorageFileConflict ResolveMode { get; set; } = StorageFileConflict.ReturnError;
         public StorageRequest() { }
     }
 }
