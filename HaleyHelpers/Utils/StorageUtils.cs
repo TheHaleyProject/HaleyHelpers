@@ -59,7 +59,7 @@ namespace Haley.Utils {
             int dirDepth = fileNameFull.IsMD5() ? Constants.DIRDEPTH_HASH : Constants.DIRDEPTH_LONG;
 
             //Now split the fileNameFull into paths.
-            var pathResult = fileNameFull.SplitAsPath(Constants.CHARSPLITLENGTH, dirDepth);
+            var pathResult = fileNameFull.SplitAsPath(Constants.CHARSPLITLENGTH, dirDepth,false,true);
 
             if (!string.IsNullOrWhiteSpace(suffix)) {
                 pathResult = pathResult + suffix; //Add suffix D for directory and F for file

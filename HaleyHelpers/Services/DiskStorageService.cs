@@ -39,9 +39,9 @@ namespace Haley.Services {
         }
 
         public Task<Stream> Download(StorageRequestBase input) {
-            if (!input.TryGeneratePath(out var path)) return null;
+            if (!input.TryGeneratePath(out var path)) return Task.FromResult(Stream.Null);
             string finalPath = Path.Combine(BasePath, path);
-            if (!File.Exists(finalPath)) return null;
+            if (!File.Exists(finalPath)) return Task.FromResult(Stream.Null);
             return Task.FromResult(new FileStream(finalPath, FileMode.Open, FileAccess.Read) as Stream); //Stream is open here.
         }
 
