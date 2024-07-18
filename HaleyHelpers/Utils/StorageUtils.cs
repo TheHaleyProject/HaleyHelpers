@@ -59,23 +59,23 @@ namespace Haley.Utils {
             int dirDepth = fileNameFull.IsMD5() ? Constants.DIRDEPTH_HASH : Constants.DIRDEPTH_LONG;
 
             //Now split the fileNameFull into paths.
-            var filePath = fileNameFull.SplitAsPath(Constants.CHARSPLITLENGTH, dirDepth);
+            var pathResult = fileNameFull.SplitAsPath(Constants.CHARSPLITLENGTH, dirDepth);
 
             if (!string.IsNullOrWhiteSpace(suffix)) {
-                filePath = filePath + suffix; //Add suffix D for directory and F for file
+                pathResult = pathResult + suffix; //Add suffix D for directory and F for file
             }
 
             var extension = Path.GetExtension(req.TargetName);
 
-            //Add extension if it is available.
-            if (!string.IsNullOrWhiteSpace(extension)) {
-                filePath = filePath + extension;
+            //Add extension if it is available. (only if it is not a folder)
+            if (!string.IsNullOrWhiteSpace(extension) && !req.IsFolder) {
+                pathResult = pathResult + extension;
             }
             //Add Root directory info if present
-            if (!string.IsNullOrWhiteSpace(req.RootDir) && !string.IsNullOrWhiteSpace(filePath)) {
-                filePath = Path.Combine(req.RootDir, filePath);
+            if (!string.IsNullOrWhiteSpace(req.RootDir) && !string.IsNullOrWhiteSpace(pathResult)) {
+                pathResult = Path.Combine(req.RootDir, pathResult);
             }
-            return filePath?.ToLower();
+            return pathResult?.ToLower();
         }
 
         internal static void GenerateTargetPath(this DiskStorageRequest req) {

@@ -23,13 +23,13 @@ namespace Haley.Services {
 
         public string BasePath { get; private set; }
 
-        public bool Delete(StorageRequestBase input) {
-            if (!input.TryGeneratePath(out var path)) return false;
+        public Task<bool> Delete(StorageRequestBase input) {
+            if (!input.TryGeneratePath(out var path)) return Task.FromResult(false);
             string finalPath = Path.Combine(BasePath, path);
             if (File.Exists(finalPath)) {
                 File.Delete(finalPath);
             }
-            return true;
+            return Task.FromResult(true);
         }
 
         public bool Exists(StorageRequest input) {
@@ -38,11 +38,11 @@ namespace Haley.Services {
             return File.Exists(finalPath);
         }
 
-        public Stream Download(StorageRequestBase input) {
+        public Task<Stream> Download(StorageRequestBase input) {
             if (!input.TryGeneratePath(out var path)) return null;
             string finalPath = Path.Combine(BasePath, path);
             if (!File.Exists(finalPath)) return null;
-            return new FileStream(finalPath, FileMode.Open, FileAccess.Read); //Stream is open here.
+            return Task.FromResult(new FileStream(finalPath, FileMode.Open, FileAccess.Read) as Stream); //Stream is open here.
         }
 
         public long GetSize(StorageRequestBase input) {
@@ -54,7 +54,6 @@ namespace Haley.Services {
 
         bool EnsureDirectory(string target) {
             try {
-                //string target = Path.Combine(BasePath, path);
                 if (Directory.Exists(target)) return true;
                 bool createFlag = true;
                 int tryCount = 0;
@@ -73,6 +72,40 @@ namespace Haley.Services {
             }
         }
 
+        public Task<StorageSummary> CreateFolder(StorageRequest input) {
+            input.SanitizeTargetName(); // If a wrong target name is provided, we just reset it.
+            input.IsFolder = true; //Since we are dealing with folders.
+            input.Source = StorageNameSource.Id; //Because we will not have name.
+
+            StorageSummary result = new StorageSummary() { Status = false, RawName = input.Id }; //remember, we allow only ID to be present from the VaultFolder create request.
+            try {
+                var dReq = input.ToDiskStorage();
+                string targetDir = Path.Combine(BasePath, dReq.TargetPath); //target path will not contain extension, if it is a folder.
+                result.TargetName = dReq.TargetName;
+
+                if (!string.IsNullOrWhiteSpace(dReq.RootDir)) {
+                    result.BasePath = Path.Combine(BasePath, dReq.RootDir).ToLower(); //Need not show the split. Just keep it as base dir alone.
+                } else {
+                    result.BasePath = BasePath.ToLower();
+                }
+
+                if (Directory.Exists(targetDir)) {
+                    result.Message = $@"Directory already exists.";
+                    return Task.FromResult(result);
+                }
+                if (!EnsureDirectory(targetDir)) {
+                    result.Message = $@"Unable to ensure storage directory. Please check if it is valid.{targetDir}";
+                    return Task.FromResult(result);
+                }
+
+                result.Status = true;
+            } catch (Exception ex) {
+                result.Status = false;
+                result.Message = ex.Message;
+            }
+                return Task.FromResult(result);
+        }
+
         public async Task<FileStorageSummary> Upload(StorageRequest input, Stream file,int bufferSize = 8192) {
             input.SanitizeTargetName(); // If a wrong target name is provided, we just reset it.
             //######### UPLOAD HAPPENS ONLY FOR FILES AND NOT FOR FOLDERS ##############.
@@ -86,16 +119,17 @@ namespace Haley.Services {
                 file.Position = 0; //Precaution
                 var dReq = input.ToDiskStorage();
                 string targetDir = Path.Combine(BasePath, Path.GetDirectoryName(dReq.TargetPath)); //we dont' try to get the directory name as it is the final
-
-                if (!EnsureDirectory(targetDir)) {
-                    result.Message = $@"Unable to ensure storage directory. Please check if it is valid.{targetDir}";
-                    return result;
-                }
+                
                 result.TargetName = dReq.TargetName; //this is the name which is used to store the file.. May be id or hash with or without extension.
                 if (!string.IsNullOrWhiteSpace(dReq.RootDir)) {
                     result.BasePath = Path.Combine(BasePath, dReq.RootDir).ToLower(); //Need not show the split. Just keep it as base dir alone.
                 } else {
                     result.BasePath = BasePath.ToLower();
+                }
+
+                if (!EnsureDirectory(targetDir)) {
+                    result.Message = $@"Unable to ensure storage directory. Please check if it is valid.{targetDir}";
+                    return result;
                 }
                
                 string finalPath = Path.Combine(BasePath, dReq.TargetPath); //this includes the split file name.
