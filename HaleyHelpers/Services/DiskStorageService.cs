@@ -27,6 +27,9 @@ namespace Haley.Services {
         public Task<bool> Delete(StorageRequestBase input) {
             if (!input.TryGeneratePath(false,out var path)) return Task.FromResult(false);
             string finalPath = Path.Combine(BasePath, path);
+            if (!finalPath.StartsWith(BasePath)) {
+                throw new ArgumentOutOfRangeException("Not authorized for this folder. Please check the path.");
+            }
             if (File.Exists(finalPath)) {
                 File.Delete(finalPath);
             }
@@ -46,6 +49,12 @@ namespace Haley.Services {
                 return Task.FromResult(result);
             }
             string finalPath = Path.Combine(BasePath, path);
+
+            if (!finalPath.StartsWith(BasePath)) {
+                result.Message = "Not authorized for this folder. Please check the path.";
+                return Task.FromResult(result);
+            }
+
             if (!File.Exists(finalPath)) {
 
                 if (string.IsNullOrWhiteSpace(Path.GetExtension(input.TargetName))) {
@@ -117,6 +126,10 @@ namespace Haley.Services {
                 string targetDir = Path.Combine(BasePath, dReq.TargetPath); //target path will not contain extension, if it is a folder.
                 result.TargetName = dReq.TargetName;
 
+                if (!targetDir.StartsWith(BasePath)) {
+                    throw new ArgumentOutOfRangeException("Not authorized for this folder. Please check the path.");
+                }
+
                 if (Directory.Exists(targetDir)) {
                     result.Message = $@"Directory already exists.";
                     return Task.FromResult(result);
@@ -137,6 +150,11 @@ namespace Haley.Services {
         public Task<bool> DeleteRepository(StorageRequestBase input, bool recursive) {
             if (!input.TryGeneratePath(true, out var path)) return Task.FromResult(false);
             string finalPath = Path.Combine(BasePath, path);
+
+            if (!finalPath.StartsWith(BasePath)) {
+                throw new ArgumentOutOfRangeException("Not authorized for this folder. Please check the path.");
+            }
+
             if (Directory.Exists(finalPath)) {
                 Directory.Delete(finalPath, recursive);
             }
@@ -149,6 +167,11 @@ namespace Haley.Services {
             var targetDir = Path.GetDirectoryName(filePath);
             if (!EnsureDirectory(targetDir)) {
                 result.Message = $@"Unable to ensure storage directory. Please check if it is valid. {targetDir}";
+                return false;
+            }
+
+            if (!filePath.StartsWith(BasePath)) {
+                result.Message = "Not authorized for this folder. Please check the path.";
                 return false;
             }
 
@@ -301,7 +324,6 @@ namespace Haley.Services {
                 return Task.FromResult(Stream.Null);
             }
         }
-
         public Task<StorageResponseBase> DeleteFromRepo(RepoStorageRequestBase input) {
             StorageResponseBase result = new StorageResponseBase() { Status = false };
             try {
@@ -320,7 +342,6 @@ namespace Haley.Services {
             }
             
         }
-
         public Task<StorageResponseBase> CreateFolderInRepo(RepoStorageRequestBase input) {
             StorageResponseBase result = new StorageResponseBase() { Status = false};
             try {
