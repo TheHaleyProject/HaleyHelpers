@@ -31,11 +31,10 @@ namespace Haley.Utils {
             if (!string.IsNullOrWhiteSpace(extension)) req.TargetName = req.TargetName + extension;
         }
 
-        public static bool TryGeneratePath(this StorageRequestBase req,out string path, string suffix = null) {
+        public static bool TryGeneratePath(this StorageRequestBase req, bool is_repo , out string path, string suffix = null) {
             path = null;
             try {
-                if (suffix == null) suffix = req.IsFolder ? "d" : "f";
-                path = req.GeneratePath(suffix);
+                path = req.GeneratePath(is_repo, suffix);
                 return true;
             } catch (Exception) {
                 return false;
@@ -53,7 +52,7 @@ namespace Haley.Utils {
         }
 
 
-        public static string GeneratePath(this StorageRequestBase req, string suffix) {
+        public static string GeneratePath(this StorageRequestBase req, bool is_repo, string suffix) {
             if (string.IsNullOrWhiteSpace(req.TargetName)) throw new ArgumentException("TargetName is null. Cannot generate TargetPath");
             string fileNameFull = Path.GetFileNameWithoutExtension(req.TargetName);
             int dirDepth = fileNameFull.IsMD5() ? Constants.DIRDEPTH_HASH : Constants.DIRDEPTH_LONG;
@@ -61,14 +60,16 @@ namespace Haley.Utils {
             //Now split the fileNameFull into paths.
             var pathResult = fileNameFull.SplitAsPath(Constants.CHARSPLITLENGTH, dirDepth,false,true);
 
+            pathResult = pathResult + (is_repo ? "d" : "f"); //Repositories should end with D (as in directory)
+
             if (!string.IsNullOrWhiteSpace(suffix)) {
-                pathResult = pathResult + suffix; //Add suffix D for directory and F for file
+                pathResult = pathResult + suffix; //Additional suffix, if we need toinclude in later stage.
             }
 
             var extension = Path.GetExtension(req.TargetName);
 
-            //Add extension if it is available. (only if it is not a folder)
-            if (!string.IsNullOrWhiteSpace(extension) && !req.IsFolder) {
+            //Add extension if it is available. (only if it is not a repository)
+            if (!string.IsNullOrWhiteSpace(extension) && !is_repo) {
                 pathResult = pathResult + extension;
             }
             //Add Root directory info if present
@@ -78,16 +79,16 @@ namespace Haley.Utils {
             return pathResult?.ToLower();
         }
 
-        internal static void GenerateTargetPath(this DiskStorageRequest req) {
+        internal static void GenerateTargetPath(this DiskStorageRequest req, bool is_repo) {
             req.GenerateTargetName(); //Should fill the target name.
-            req.TryGeneratePath(out var path);
+            req.TryGeneratePath(is_repo, out var path);
             req.SetTargetPath(path);
         }
 
-        internal static DiskStorageRequest ToDiskStorage(this StorageRequest input) {
+        internal static DiskStorageRequest ToDiskStorage(this StorageRequest input,bool is_repo) {
             var dskReq = new DiskStorageRequest(input);
             dskReq.SanitizeTargetName(); //Just to ensure we don't make any mistake.
-            dskReq?.GenerateTargetPath();
+            dskReq?.GenerateTargetPath(is_repo);
             return dskReq;
         }
 

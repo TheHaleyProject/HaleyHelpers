@@ -7,8 +7,9 @@ using System.Threading.Tasks;
 namespace Haley.Enums {
     public enum StorageFileConflict {
         Skip = 0,
-        ReturnError,
-        ThrowException,
-        Replace
+        ReturnError=1,
+        Replace = 2,
+        //ThrowException=3
+
     }
 }
