@@ -73,8 +73,8 @@ namespace Haley.Utils {
                 pathResult = pathResult + extension;
             }
             //Add Root directory info if present
-            if (!string.IsNullOrWhiteSpace(req.RootDir) && !string.IsNullOrWhiteSpace(pathResult)) {
-                pathResult = Path.Combine(req.RootDir, pathResult);
+            if (!string.IsNullOrWhiteSpace(req.Container) && !string.IsNullOrWhiteSpace(pathResult)) {
+                pathResult = Path.Combine(req.Container, pathResult);
             }
             return pathResult?.ToLower();
         }

@@ -100,7 +100,7 @@ namespace Haley.Services {
 
                 result.TargetName = dReq.TargetName; //this is the name which is used to store the file.. May be id or hash with or without extension.
 
-                if (!FilePreProcess(result, input.RootDir, finalPath, input.ResolveMode)) return result;
+                if (!FilePreProcess(result, input.Container, finalPath, input.ResolveMode)) return result;
 
                 using (var fs = File.Create(finalPath)) {
                     await file.CopyToAsync(fs, bufferSize);
