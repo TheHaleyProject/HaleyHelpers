@@ -9,11 +9,10 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public sealed class RepoSummary  {
+    public class DirectoryInfoResponse : StorageResponse {
         public string Path { get; set; }
-        public string Message { get; set; }
         public List<string> FoldersList { get; set; } = new List<string>();
         public List<string> FilesList { get; set; } = new List<string>();
-        public RepoSummary() {  }
+        public DirectoryInfoResponse() {  }
     }
 }

@@ -9,9 +9,9 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public class StorageResponseBase {
+    public class StorageResponse {
         public bool Status { get; set; }
         public string Message { get; set; }
-        public StorageResponseBase() {  }
+        public StorageResponse() {  }
     }
 }

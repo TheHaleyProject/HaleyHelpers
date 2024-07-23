@@ -9,9 +9,9 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public sealed class FileStorageSummary : StorageSummary {
-        public long Size { get; set; }
-        public bool FileExists { get; set; } = false;
-        public FileStorageSummary() { IsRepository = false;  }
+    public class ObjectReadRequest {
+        public string Name { get; set; } //To be filled for read requests.. 
+        public string FullPath { get; set; }
+        public ObjectReadRequest() { }
     }
 }
