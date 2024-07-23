@@ -10,8 +10,8 @@ using System.Xml;
 
 namespace Haley.Models {
     public class ObjectReadRequest {
-        public string Name { get; set; } //To be filled for read requests.. 
-        public string FullPath { get; set; }
+        public string ObjectName { get; set; } //To be filled for read requests.. 
+        public string ObjectFullPath { get; set; }
         public ObjectReadRequest() { }
     }
 }

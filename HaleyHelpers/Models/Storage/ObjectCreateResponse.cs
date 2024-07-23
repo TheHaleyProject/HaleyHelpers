@@ -9,13 +9,14 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public class StorageSummary {
+    public class ObjectCreateResponse {
+        //Object can be a folder object or a file object.
         public bool Status { get; set; }
         public string SavedName { get; set; }
         public string RawName { get; set; }
         public string Message { get; set; }
         public long Size { get; set; }
         public bool ObjectExists { get; set; } = false;
-        public StorageSummary() {  }
+        public ObjectCreateResponse() {  }
     }
 }
