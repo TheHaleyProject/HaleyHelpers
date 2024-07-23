@@ -1,4 +1,5 @@
-﻿using Haley.Enums;
+﻿using Haley.Abstractions;
+using Haley.Enums;
 using Haley.Utils;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public class ObjectReadRequest {
+    public class ObjectReadRequest : IObjectReadRequest {
         public string ObjectName { get; set; } //To be filled for read requests.. 
         public string ObjectFullPath { get; set; }
         public ObjectReadRequest() { }

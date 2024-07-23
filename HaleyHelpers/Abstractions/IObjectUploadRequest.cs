@@ -8,7 +8,7 @@ using Haley.Models;
 using System.IO;
 
 namespace Haley.Abstractions {
-    public interface IObjectUploadRequest {
+    public interface IObjectUploadRequest : IObjectReadRequest {
         int BufferSize { get; set; }
         Stream  FileStream { get; set; }
         string ObjectRawName { get; set; }

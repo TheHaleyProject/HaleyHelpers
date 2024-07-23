@@ -28,8 +28,8 @@ namespace Haley.Services {
         public async Task<ObjectCreateResponse> Upload(ObjectWriteRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() { 
                 Status = false,
-                RawName = input.ObjectRawName ?? input.ObjectName,
-                SavedName = input.ObjectRawName ?? input.ObjectName };
+                RawName = input.ObjectRawName ?? input.ObjectName
+            };
             try {
                 var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
                 if (string.IsNullOrWhiteSpace(path)) {
@@ -139,8 +139,7 @@ namespace Haley.Services {
         public Task<ObjectCreateResponse> CreateRepository(ObjectWriteRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
-                RawName = input.ObjectRawName ?? input.ObjectName,
-                SavedName = input.ObjectRawName ?? input.ObjectName
+                RawName = input.ObjectRawName ?? input.ObjectName
             };
             try {
                 var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
