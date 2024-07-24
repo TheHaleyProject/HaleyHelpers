@@ -25,10 +25,10 @@ namespace Haley.Services {
         public string BasePath { get; }
 
         #region Disk Storage Management 
-        public async Task<ObjectCreateResponse> Upload(ObjectWriteRequest input) {
-            ObjectCreateResponse result = new ObjectCreateResponse() { 
+        public async Task<ObjectCreateResponse> Upload(IObjectUploadRequest input) {
+            ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
-                RawName = input.ObjectRawName ?? input.ObjectName
+                RawName = input.ObjectRawName
             };
             try {
                 var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
@@ -63,7 +63,7 @@ namespace Haley.Services {
             return result;
         }
 
-        public Task<StreamResponse> Download(ObjectReadRequest input, bool auto_search_extension = true) {
+        public Task<StreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true) {
             StreamResponse result = new StreamResponse() { Status = false, Stream = Stream.Null };
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(result);
@@ -92,7 +92,7 @@ namespace Haley.Services {
             return Task.FromResult(result); //Stream is open here.
         }
 
-        public Task<bool> Delete(ObjectReadRequest input) {
+        public Task<bool> Delete(IObjectReadRequest input) {
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(false);
            
@@ -102,19 +102,19 @@ namespace Haley.Services {
             return Task.FromResult(true);
         }
 
-        public bool Exists(ObjectReadRequest input) {
+        public bool Exists(IObjectReadRequest input) {
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return false;
             return File.Exists(path);
         }
 
-        public long GetSize(ObjectReadRequest input) {
+        public long GetSize(IObjectReadRequest input) {
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return 0;
             return new FileInfo(path).Length;
         }
 
-        public Task<DirectoryInfoResponse> GetInfo(ObjectReadRequest input) {
+        public Task<DirectoryInfoResponse> GetInfo(IObjectReadRequest input) {
             DirectoryInfoResponse result = new DirectoryInfoResponse() { Status = false};
 
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
@@ -136,10 +136,10 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public Task<ObjectCreateResponse> CreateRepository(ObjectWriteRequest input) {
+        public Task<ObjectCreateResponse> CreateRepository(IObjectUploadRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
-                RawName = input.ObjectRawName ?? input.ObjectName
+                RawName = input.ObjectRawName
             };
             try {
                 var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
@@ -165,7 +165,7 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public Task<bool> DeleteRepository(ObjectReadRequest input, bool recursive) {
+        public Task<bool> DeleteRepository(IObjectReadRequest input, bool recursive) {
 
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(false);
@@ -233,30 +233,47 @@ namespace Haley.Services {
             return true;
         }
 
-        string GetFinalStoragePath(ObjectReadRequest input) {
-            if (input == null) throw new ArgumentNullException($@"{nameof(ObjectReadRequest)} cannot be null");
+        string SanitizePath(string input) {
+            if (string.IsNullOrEmpty(input)) return input;
+            if (input == "/" || input == @"\") input = string.Empty; //We cannot have single '/' as path.
+            if (input.StartsWith("/") || input.StartsWith(@"\")) input = input.Substring(1); //We cannot have something start with / as well
+            return input;
+        }
 
-            //What if, the user provided no value and we end up with only the Basepath.
-            if (string.IsNullOrWhiteSpace(input.ObjectName) && string.IsNullOrWhiteSpace(input.ObjectFullPath)) throw new ArgumentNullException($@"Either Name of Path is required to generate a full path");
+        string Build(List<StorageRoute> routes) {
+            string path = BasePath; //Base path cannot be null. it is mandatory for disk storage.
+            //Pull the lastone out.
+            if (routes == null && routes.Count < 1) return path; //Direclty create inside the basepath (applicable in few cases);
 
-            string path = input.ObjectFullPath?.ToLower();
-
-            //If the path is null, we set the base path.
-            if (string.IsNullOrWhiteSpace(path)) path = BasePath;
-
-            //If it doesn't start with base path, we replace as well
-            if (!path.StartsWith(BasePath)) path = Path.Combine(BasePath, path);
-
-            //Check if the name and path ends with same values.
-            if (!string.IsNullOrWhiteSpace(input.ObjectName) && !path.EndsWith(input.ObjectName.ToLower())) path = Path.Combine(path, input.ObjectName.ToLower());
-
-            //PRECAUTION : Final check to ensure that we didn't make any mistake.
-            if (!path.StartsWith(BasePath)) {
-                throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
+            for (int i = 0; i < routes.Count; i++) { //the -2 is to ensure we ignore the last part.
+                var route = routes[i];
+                //If we are at the end, ignore
+                string wv = route.Path;
+                wv = SanitizePath(wv.Trim());
+                if (string.IsNullOrWhiteSpace(wv)) continue;
+                path = Path.Combine(path, wv);
+                if (i == routes.Count - 1) break; //We are at last index. break out without generating or creating a directory.
+                if (!route.CreateIfNotFound) {
+                    //validate the path.
+                    if (!Directory.Exists(path)) throw new ArgumentException($@"Failed to validate the route component : {route.Path}");
+                }
+                if (!EnsureDirectory(path)) throw new ArgumentException($@"Unable to create the route component : {route.Path}");
             }
 
             return path;
+        }
 
+        string GetFinalStoragePath(IObjectReadRequest input) {
+            if (input == null || !(input is ObjectReadRequest req)) throw new ArgumentNullException($@"{nameof(IObjectReadRequest)} cannot be null. It has to be of type {nameof(ObjectReadRequest)}");
+
+            req.ObjectFullPath = Build(input.StorageRoutes); 
+            //What if, the user provided no value and we end up with only the Basepath.
+            if (string.IsNullOrWhiteSpace(req.ObjectFullPath)) throw new ArgumentNullException($@"Unable to generate a full object path for the request");
+
+            //If it doesn't start with base path, we replace as well
+            if (!req.ObjectFullPath.StartsWith(BasePath)) throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
+
+            return req.ObjectFullPath;
         }
         #endregion
     }

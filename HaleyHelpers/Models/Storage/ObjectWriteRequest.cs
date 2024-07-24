@@ -17,5 +17,12 @@ namespace Haley.Models {
         public Stream FileStream { get; set; }
         public string ObjectId { get; set; }
         public ObjectWriteRequest() { }
+
+        public virtual object Clone() {
+            var cloned = new ObjectWriteRequest();
+            //use map
+            this.MapProperties(cloned);
+            return cloned ;
+        }
     }
 }
