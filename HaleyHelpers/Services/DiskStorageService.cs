@@ -253,11 +253,11 @@ namespace Haley.Services {
                 if (string.IsNullOrWhiteSpace(wv)) continue;
                 path = Path.Combine(path, wv);
                 if (i == routes.Count - 1) break; //We are at last index. break out without generating or creating a directory.
-                if (!route.CreateIfNotFound) {
+                if (!route.CreateIfMissing) {
                     //validate the path.
-                    if (!Directory.Exists(path)) throw new ArgumentException($@"Failed to validate the route component : {route.Path}");
+                    if (!Directory.Exists(path)) throw new ArgumentException($@"Failed to validate the route component : {route.Key ?? route.Path}");
                 }
-                if (!EnsureDirectory(path)) throw new ArgumentException($@"Unable to create the route component : {route.Path}");
+                if (!EnsureDirectory(path)) throw new ArgumentException($@"Unable to create the route component : {route.Key ?? route.Path}");
             }
 
             return path;

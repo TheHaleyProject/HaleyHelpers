@@ -4,8 +4,11 @@ using System.Text;
 
 namespace Haley.Models {
     public class StorageRoute {
-        public string Path { get; set; }
-        public bool CreateIfNotFound { get; set; } = true;
-        public StorageRoute(string path, bool create_if_not_found = true) { Path = path; CreateIfNotFound = create_if_not_found; }
+        public string Key { get; }
+        public string Path { get; private set; }
+
+        public void SetPath(string path) { Path = path; }
+        public bool CreateIfMissing { get; } = true;
+        public StorageRoute(string key, string path, bool createIfMissing = true) { Key = key;  Path = path; CreateIfMissing = createIfMissing; }
     }
 }
