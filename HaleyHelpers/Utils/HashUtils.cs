@@ -114,7 +114,8 @@ namespace Haley.Utils
             }
 
         }
-        public static string ComputeHash(string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true, bool removeHypens = false)
+
+        public static string ComputeHash(this string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true, bool removeHypens = false)
         {
             var _to_hash_bytes = Encoding.ASCII.GetBytes(to_hash);
             return ConvertToString(ComputeHash(_to_hash_bytes, method), encodeBase64,removeHypens);
