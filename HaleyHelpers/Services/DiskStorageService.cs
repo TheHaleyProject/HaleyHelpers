@@ -136,10 +136,10 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public Task<ObjectCreateResponse> CreateRepository(IObjectUploadRequest input) {
+        public Task<ObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
-                RawName = input.ObjectRawName
+                RawName = rawname
             };
             try {
                 var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
@@ -165,7 +165,7 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public Task<bool> DeleteRepository(IObjectReadRequest input, bool recursive) {
+        public Task<bool> DeleteDirectory(IObjectReadRequest input, bool recursive) {
 
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(false);

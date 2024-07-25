@@ -17,7 +17,7 @@ namespace Haley.Abstractions {
         bool Exists(IObjectReadRequest input);
         long GetSize(IObjectReadRequest input);
         Task<DirectoryInfoResponse> GetInfo(IObjectReadRequest input);
-        Task<ObjectCreateResponse> CreateRepository(IObjectUploadRequest input);
-        Task<bool> DeleteRepository(IObjectReadRequest input, bool recursive);
+        Task<ObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname);
+        Task<bool> DeleteDirectory(IObjectReadRequest input, bool recursive);
     }
 }
