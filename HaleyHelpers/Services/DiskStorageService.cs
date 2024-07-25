@@ -251,13 +251,39 @@ namespace Haley.Services {
                 string wv = route.Path;
                 wv = SanitizePath(wv.Trim());
                 if (string.IsNullOrWhiteSpace(wv)) continue;
-                path = Path.Combine(path, wv);
-                if (i == routes.Count - 1) break; //We are at last index. break out without generating or creating a directory.
-                if (!route.CreateIfMissing) {
+
+                bool hasSubPath = false;
+                
+                if (!route.IsFile) {
+                    path = Path.Combine(path, wv);
+                } else {
+                    //We jump out the moment we reach a file.
+                    //But before we jump , we validate if the file has any path attached.
+                    var subPath = Path.GetDirectoryName(wv);
+                    subPath = SanitizePath(subPath.Trim());
+                    hasSubPath = !string.IsNullOrWhiteSpace(subPath);
+                    if (hasSubPath) {
+                        path = Path.Combine(path, subPath); //attach the sub path first.
+                        //Now go ahead and validate
+                    } else {
+                        path = Path.Combine(path, wv);
+                    }
+                }
+
+                if (!hasSubPath && route.IsFile) break; //We are at last index. break out without generating or creating a directory.
+                //if (i == routes.Count - 1) 
+
+                if (!route.CanCreatePath) {
                     //validate the path.
                     if (!Directory.Exists(path)) throw new ArgumentException($@"Failed to validate the route component : {route.Key ?? route.Path}");
                 }
                 if (!EnsureDirectory(path)) throw new ArgumentException($@"Unable to create the route component : {route.Key ?? route.Path}");
+                
+                if (route.IsFile) {
+                    //If we are here, then it means it had some sub path, which we were creating above.
+                    //Now attach the file name aswell to the path.
+                    path = Path.Combine(path, Path.GetFileName(wv)); //just the file name alone.
+                }
             }
 
             return path;

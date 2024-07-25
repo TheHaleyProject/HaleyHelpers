@@ -7,7 +7,8 @@ namespace Haley.Models {
         public string Key { get; }
         public string Path { get; private set; }
         public void SetPath(string path) { Path = path; }
-        public bool CreateIfMissing { get; }
-        public StorageRoute(string key, string path, bool createIfMissing = true) { Key = key;  Path = path; CreateIfMissing = createIfMissing; }
+        public bool CanCreatePath { get; }
+        public bool IsFile { get; set; }
+        public StorageRoute(string key, string path, bool isfile, bool createIfMissing) { Key = key;  Path = path; CanCreatePath = createIfMissing; IsFile = isfile; }
     }
 }
