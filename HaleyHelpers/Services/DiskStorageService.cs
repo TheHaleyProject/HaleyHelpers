@@ -114,7 +114,7 @@ namespace Haley.Services {
             return new FileInfo(path).Length;
         }
 
-        public Task<DirectoryInfoResponse> GetInfo(IObjectReadRequest input) {
+        public Task<DirectoryInfoResponse> GetDirectoryInfo(IObjectReadRequest input) {
             DirectoryInfoResponse result = new DirectoryInfoResponse() { Status = false};
 
             var path = GetFinalStoragePath(input,true); //This will also ensure we are not trying to delete something 
