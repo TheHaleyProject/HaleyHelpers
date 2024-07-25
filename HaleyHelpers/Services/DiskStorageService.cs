@@ -275,7 +275,7 @@ namespace Haley.Services {
 
                 if (!route.CanCreatePath) {
                     //validate the path.
-                    if (!Directory.Exists(path)) throw new ArgumentException($@"Failed to validate the route component : {route.Key ?? route.Path}");
+                    if (!Directory.Exists(path)) throw new ArgumentException($@"Unable to create the missing directory path : {route.Key ?? route.Path}");
                 }
                 if (!EnsureDirectory(path)) throw new ArgumentException($@"Unable to create the route component : {route.Key ?? route.Path}");
                 
