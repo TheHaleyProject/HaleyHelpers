@@ -14,8 +14,8 @@ namespace Haley.Models {
         public string ObjectRawName { get; set; }
         public ObjectExistsResolveMode ResolveMode { get; set; } = ObjectExistsResolveMode.ReturnError;
         public int BufferSize { get; set; } = 8192;
-        public Stream FileStream { get; set; }
         public string ObjectId { get; set; }
+        public Stream FileStream { get; set; }
         public ObjectWriteRequest() { }
 
         public virtual object Clone() {

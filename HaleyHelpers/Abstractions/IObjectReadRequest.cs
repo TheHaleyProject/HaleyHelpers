@@ -9,7 +9,7 @@ using System.IO;
 
 namespace Haley.Abstractions {
     public interface IObjectReadRequest {
-        string ObjectFullPath { get; }
+        string ObjectLocation { get; }
         List<StorageRoute> StorageRoutes { get; }
 
     }

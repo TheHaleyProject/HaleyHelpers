@@ -117,7 +117,7 @@ namespace Haley.Services {
         public Task<DirectoryInfoResponse> GetInfo(IObjectReadRequest input) {
             DirectoryInfoResponse result = new DirectoryInfoResponse() { Status = false};
 
-            var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
+            var path = GetFinalStoragePath(input,true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
                 result.Message = "Unable to generate path.";
                 return Task.FromResult(result);
@@ -144,20 +144,22 @@ namespace Haley.Services {
             try {
                 var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
                 if (string.IsNullOrWhiteSpace(path)) {
-                    result.Message = "Unable to generate the final storage path. Please check inputs.";
+                    result.Message = $@"Unable to generate the path. Please check inputs.";
                     return Task.FromResult(result);
                 }
 
                 if (Directory.Exists(path)) {
+                    result.Status = true;
                     result.Message = $@"Directory already exists.";
                     return Task.FromResult(result);
                 }
                 if (!EnsureDirectory(path)) {
-                    result.Message = $@"Unable to ensure storage directory. Please check if it is valid.";
+                    result.Message = $@"Unable to create the directory. Please check if it is valid.";
                     return Task.FromResult(result);
                 }
 
                 result.Status = true;
+                result.Message = "Created";
             } catch (Exception ex) {
                 result.Status = false;
                 result.Message = ex.Message;
@@ -166,10 +168,14 @@ namespace Haley.Services {
         }
 
         public Task<bool> DeleteDirectory(IObjectReadRequest input, bool recursive) {
-
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(false);
-
+            //How do we verfiy, if this the final target that we wish to delete?
+            //We should not by mistake end up deleting a wrong directory.
+            var expectedToDelete = input.StorageRoutes.Last().Path?.ToLower().Trim();
+            if (string.IsNullOrWhiteSpace(expectedToDelete) || 
+                (expectedToDelete == "\\" || expectedToDelete == "/") ||
+                expectedToDelete.Equals(BasePath.ToLower())) return Task.FromResult(false); // donot try to delete
             if (Directory.Exists(path)) {
                 Directory.Delete(path, recursive);
             }
@@ -240,20 +246,27 @@ namespace Haley.Services {
             return input;
         }
 
-        string Build(List<StorageRoute> routes) {
+        string Build(List<StorageRoute> routes, bool allow_root_access) {
             string path = BasePath; //Base path cannot be null. it is mandatory for disk storage.
             //Pull the lastone out.
             if (routes == null && routes.Count < 1) return path; //Direclty create inside the basepath (applicable in few cases);
-
+            //If one of the path is trying to make a root access, should we allow or deny?
+            
             for (int i = 0; i < routes.Count; i++) { //the -2 is to ensure we ignore the last part.
                 var route = routes[i];
                 //If we are at the end, ignore
                 string wv = route.Path;
                 wv = SanitizePath(wv.Trim());
-                if (string.IsNullOrWhiteSpace(wv)) continue;
+                if (string.IsNullOrWhiteSpace(wv)) {
+                    if (allow_root_access) continue;
+                    //We are trying a root access
+                    throw new AccessViolationException("Root access is not allowed.");
+                } 
 
                 bool hasSubPath = false;
-                
+                bool isEndPart = (i == routes.Count-1); //Are we at the end of the line?
+                bool breakFlag = false;
+
                 if (!route.IsFile) {
                     path = Path.Combine(path, wv);
                 } else {
@@ -270,36 +283,48 @@ namespace Haley.Services {
                     }
                 }
 
-                if (!hasSubPath && route.IsFile) break; //We are at last index. break out without generating or creating a directory.
-                //if (i == routes.Count - 1) 
+                //1. Should we check for directory existence in case of a file?
+                breakFlag = !hasSubPath && route.IsFile; //No sub path but current route is a file, then break;
+                if (breakFlag) break;
 
-                if (!route.CanCreatePath) {
-                    //validate the path.
-                    if (!Directory.Exists(path)) throw new ArgumentException($@"Unable to create the missing directory path : {route.Key ?? route.Path}");
+                //2. a) Dir Creation disallowed b) Dir doesn't exists
+                if (!route.CanCreatePath && !Directory.Exists(path)) {
+                    //Whether it is a file or a directory, if user doesn't have access to create it, throw exception.
+                    string errMsg = $@"Directory doesn't exists : {route.Key ?? route.Path}";
+
+                    //2.1 ) Are we in the middle, trying to ensure some directory exists?
+                    if (isEndPart) errMsg = $@"Access denied to create/delete the directory :{route.Key ?? route.Path}";
+                    throw new ArgumentException(errMsg);
                 }
-                if (!EnsureDirectory(path)) throw new ArgumentException($@"Unable to create the route component : {route.Key ?? route.Path}");
-                
+
+                //3. Are we trying to create a directory as our main target?
+                breakFlag = (isEndPart && !route.IsFile);
+                if (breakFlag) break; 
+
+                if (!EnsureDirectory(path)) throw new ArgumentException($@"Unable to create the directory : {route.Key ?? route.Path}");
+
                 if (route.IsFile) {
                     //If we are here, then it means it had some sub path, which we were creating above.
                     //Now attach the file name aswell to the path.
                     path = Path.Combine(path, Path.GetFileName(wv)); //just the file name alone.
+                    break;// Once we reach a file part, we break
                 }
             }
 
             return path;
         }
 
-        string GetFinalStoragePath(IObjectReadRequest input) {
+        string GetFinalStoragePath(IObjectReadRequest input, bool allowRootAccess = false) {
             if (input == null || !(input is ObjectReadRequest req)) throw new ArgumentNullException($@"{nameof(IObjectReadRequest)} cannot be null. It has to be of type {nameof(ObjectReadRequest)}");
 
-            req.ObjectFullPath = Build(input.StorageRoutes); 
+            req.ObjectLocation = Build(input.StorageRoutes,allowRootAccess); 
             //What if, the user provided no value and we end up with only the Basepath.
-            if (string.IsNullOrWhiteSpace(req.ObjectFullPath)) throw new ArgumentNullException($@"Unable to generate a full object path for the request");
+            if (string.IsNullOrWhiteSpace(req.ObjectLocation)) throw new ArgumentNullException($@"Unable to generate a full object path for the request");
 
             //If it doesn't start with base path, we replace as well
-            if (!req.ObjectFullPath.StartsWith(BasePath)) throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
+            if (!req.ObjectLocation.StartsWith(BasePath)) throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
 
-            return req.ObjectFullPath;
+            return req.ObjectLocation;
         }
         #endregion
     }
