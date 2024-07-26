@@ -75,9 +75,17 @@ namespace Haley.Services {
                     var findName = Path.GetFileNameWithoutExtension(path);
                     //Extension not provided. So, lets to see if we have any matching file.
                     DirectoryInfo dinfo = new DirectoryInfo(Path.GetDirectoryName(path));
+                    if (!dinfo.Exists) {
+                        result.Message = "File doesn't exists in the given path.";
+                        return Task.FromResult(result);
+                    }
                     var matchingFiles = dinfo?.GetFiles()?.Where(p => Path.GetFileNameWithoutExtension(p.Name) == findName).ToList();
                     if (matchingFiles.Count() == 1) {
                         path = matchingFiles.FirstOrDefault().FullName;
+                    } else if (matchingFiles.Count() > 1) {
+                        //We found mathing items but more than one
+                        result.Message = "Multiple matching files found. Please provide a valid extension.";
+                        return Task.FromResult(result);
                     }
                 }
             }
@@ -243,6 +251,7 @@ namespace Haley.Services {
             if (string.IsNullOrEmpty(input)) return input;
             if (input == "/" || input == @"\") input = string.Empty; //We cannot have single '/' as path.
             if (input.StartsWith("/") || input.StartsWith(@"\")) input = input.Substring(1); //We cannot have something start with / as well
+            if (input.Contains("..")) throw new ArgumentException("Path Contains invalid characters. Do not include double dots.");
             return input;
         }
 
@@ -263,31 +272,13 @@ namespace Haley.Services {
                     throw new AccessViolationException("Root access is not allowed.");
                 } 
 
-                bool hasSubPath = false;
                 bool isEndPart = (i == routes.Count-1); //Are we at the end of the line?
-                bool breakFlag = false;
+                path = Path.Combine(path, wv);
 
-                if (!route.IsFile) {
-                    path = Path.Combine(path, wv);
-                } else {
-                    //We jump out the moment we reach a file.
-                    //But before we jump , we validate if the file has any path attached.
-                    var subPath = Path.GetDirectoryName(wv);
-                    subPath = SanitizePath(subPath.Trim());
-                    hasSubPath = !string.IsNullOrWhiteSpace(subPath);
-                    if (hasSubPath) {
-                        path = Path.Combine(path, subPath); //attach the sub path first.
-                        //Now go ahead and validate
-                    } else {
-                        path = Path.Combine(path, wv);
-                    }
-                }
+                //If the route is a file, just jump out. Because, if it is a file, may be we are either uploading or fetching the file. the file might even contain it's own sub path as well. 
+                if (route.IsFile) break; 
 
-                //1. Should we check for directory existence in case of a file?
-                breakFlag = !hasSubPath && route.IsFile; //No sub path but current route is a file, then break;
-                if (breakFlag) break;
-
-                //2. a) Dir Creation disallowed b) Dir doesn't exists
+                //1. a) Dir Creation disallowed b) Dir doesn't exists
                 if (!route.CanCreatePath && !Directory.Exists(path)) {
                     //Whether it is a file or a directory, if user doesn't have access to create it, throw exception.
                     string errMsg = $@"Directory doesn't exists : {route.Key ?? route.Path}";
@@ -297,20 +288,11 @@ namespace Haley.Services {
                     throw new ArgumentException(errMsg);
                 }
 
-                //3. Are we trying to create a directory as our main target?
-                breakFlag = (isEndPart && !route.IsFile);
-                if (breakFlag) break; 
+                //3. Are we trying to create a directory as our main goal?
+                if (isEndPart) break;
 
                 if (!EnsureDirectory(path)) throw new ArgumentException($@"Unable to create the directory : {route.Key ?? route.Path}");
-
-                if (route.IsFile) {
-                    //If we are here, then it means it had some sub path, which we were creating above.
-                    //Now attach the file name aswell to the path.
-                    path = Path.Combine(path, Path.GetFileName(wv)); //just the file name alone.
-                    break;// Once we reach a file part, we break
-                }
             }
-
             return path;
         }
 
@@ -323,6 +305,8 @@ namespace Haley.Services {
 
             //If it doesn't start with base path, we replace as well
             if (!req.ObjectLocation.StartsWith(BasePath)) throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
+
+            if (req.ObjectLocation.Contains("..")) throw new ArgumentOutOfRangeException("The generated path contains invalid characters. Please fix");
 
             return req.ObjectLocation;
         }
