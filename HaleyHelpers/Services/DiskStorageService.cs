@@ -250,7 +250,7 @@ namespace Haley.Services {
         string SanitizePath(string input) {
             if (string.IsNullOrEmpty(input)) return input;
             if (input == "/" || input == @"\") input = string.Empty; //We cannot have single '/' as path.
-            if (input.StartsWith("/") || input.StartsWith(@"\")) input = input.Substring(1); //We cannot have something start with / as well
+            //if (input.StartsWith("/") || input.StartsWith(@"\")) input = input.Substring(1); //We cannot have something start with / as well
             if (input.Contains("..")) throw new ArgumentException("Path Contains invalid characters. Do not include double dots.");
             return input;
         }
@@ -276,7 +276,7 @@ namespace Haley.Services {
                 path = Path.Combine(path, wv);
 
                 //If the route is a file, just jump out. Because, if it is a file, may be we are either uploading or fetching the file. the file might even contain it's own sub path as well. 
-                if (route.IsFile) break; 
+                if (route.IsFile) break;
 
                 //1. a) Dir Creation disallowed b) Dir doesn't exists
                 if (!route.CanCreatePath && !Directory.Exists(path)) {
