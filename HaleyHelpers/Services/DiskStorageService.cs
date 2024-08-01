@@ -100,20 +100,40 @@ namespace Haley.Services {
             return Task.FromResult(result); //Stream is open here.
         }
 
-        public Task<bool> Delete(IObjectReadRequest input) {
-            var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
-            if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(false);
-           
-            if (File.Exists(path)) {
-                File.Delete(path);
+        public Task<Feedback> Delete(IObjectReadRequest input) {
+            var feedback = new Feedback() { Status = false };
+            var path = GetFinalStoragePath(input, forReadOnly:true); //This will also ensure we are not trying to delete something 
+            if (string.IsNullOrWhiteSpace(path)) {
+                feedback.Message = "Unable to generate path from provided inputs.";
+                return Task.FromResult(feedback);
             }
-            return Task.FromResult(true);
+           
+            if (!File.Exists(path)) {
+                feedback.Message = $@"File does not exists : {path}.";
+                return Task.FromResult(feedback);
+            }
+            File.Delete(path);
+            feedback.Message = $@"File deleted";
+            feedback.Status = true;
+            return Task.FromResult(feedback);
         }
 
-        public bool Exists(IObjectReadRequest input) {
-            var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
-            if (string.IsNullOrWhiteSpace(path)) return false;
-            return File.Exists(path);
+        public Feedback Exists(IObjectReadRequest input) {
+            var feedback = new Feedback() { Status = false };
+            var path = GetFinalStoragePath(input,forReadOnly:true); //This will also ensure we are not trying to delete something 
+            if (string.IsNullOrWhiteSpace(path)) {
+                feedback.Message = "Unable to generate path from provided inputs.";
+                return feedback;
+            }
+            bool isFile = input.StorageRoutes.Any(p => p.IsFile);
+            //If any of the storageroute has a IsFile flag, then it means, we are trying to figure out a file existence.
+            if (isFile) {
+                feedback.Status = File.Exists(path);
+            } else {
+                feedback.Status = Directory.Exists(path);
+            }
+            if (!feedback.Status) feedback.Message = $@"Does not exists {path}";
+            return feedback;
         }
 
         public long GetSize(IObjectReadRequest input) {
@@ -175,19 +195,30 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public Task<bool> DeleteDirectory(IObjectReadRequest input, bool recursive) {
-            var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
-            if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(false);
+        public Task<Feedback> DeleteDirectory(IObjectReadRequest input, bool recursive) {
+            var feedback = new Feedback() { Status = false };
+            var path = GetFinalStoragePath(input,forReadOnly: true); //This will also ensure we are not trying to delete something 
+            if (string.IsNullOrWhiteSpace(path)) {
+                feedback.Message = "Unable to generate path from provided inputs.";
+                return Task.FromResult(feedback);
+            }
             //How do we verfiy, if this the final target that we wish to delete?
             //We should not by mistake end up deleting a wrong directory.
             var expectedToDelete = input.StorageRoutes.Last().Path?.ToLower().Trim();
-            if (string.IsNullOrWhiteSpace(expectedToDelete) || 
+            if (string.IsNullOrWhiteSpace(expectedToDelete) ||
                 (expectedToDelete == "\\" || expectedToDelete == "/") ||
-                expectedToDelete.Equals(BasePath.ToLower())) return Task.FromResult(false); // donot try to delete
-            if (Directory.Exists(path)) {
-                Directory.Delete(path, recursive);
+                expectedToDelete.Equals(BasePath.ToLower())) {
+                feedback.Message = "Path is not valid for deleting.";
+                return Task.FromResult(feedback);
             }
-            return Task.FromResult(true);
+            if (!Directory.Exists(path)) {
+                feedback.Message = $@"Directory does not exists. : {path}.";
+                return Task.FromResult(feedback);
+            }
+            Directory.Delete(path, recursive);
+            feedback.Status = true;
+            feedback.Message = "Deleted successfully";
+            return Task.FromResult(feedback);
         }
 
         #endregion
@@ -255,7 +286,7 @@ namespace Haley.Services {
             return input;
         }
 
-        string Build(List<StorageRoute> routes, bool allow_root_access) {
+        string Build(List<StorageRoute> routes, bool allow_root_access, bool forReadOnly) {
             string path = BasePath; //Base path cannot be null. it is mandatory for disk storage.
             //Pull the lastone out.
             if (routes == null && routes.Count < 1) return path; //Direclty create inside the basepath (applicable in few cases);
@@ -284,7 +315,7 @@ namespace Haley.Services {
                     string errMsg = $@"Directory doesn't exists : {route.Key ?? route.Path}";
 
                     //2.1 ) Are we in the middle, trying to ensure some directory exists?
-                    if (isEndPart) errMsg = $@"Access denied to create/delete the directory :{route.Key ?? route.Path}";
+                    if (isEndPart && !forReadOnly) errMsg = $@"Access denied to create/delete the directory :{route.Key ?? route.Path}";
                     throw new ArgumentException(errMsg);
                 }
 
@@ -296,10 +327,10 @@ namespace Haley.Services {
             return path;
         }
 
-        string GetFinalStoragePath(IObjectReadRequest input, bool allowRootAccess = false) {
+        string GetFinalStoragePath(IObjectReadRequest input, bool allowRootAccess = false, bool forReadOnly= false) {
             if (input == null || !(input is ObjectReadRequest req)) throw new ArgumentNullException($@"{nameof(IObjectReadRequest)} cannot be null. It has to be of type {nameof(ObjectReadRequest)}");
 
-            req.ObjectLocation = Build(input.StorageRoutes,allowRootAccess); 
+            req.ObjectLocation = Build(input.StorageRoutes,allowRootAccess,forReadOnly); 
             //What if, the user provided no value and we end up with only the Basepath.
             if (string.IsNullOrWhiteSpace(req.ObjectLocation)) throw new ArgumentNullException($@"Unable to generate a full object path for the request");
 

@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public class StreamResponse : StorageResponse {
+    public class StreamResponse : Feedback {
         public Stream Stream { get; set; }
         public string Extension { get; set; }
         public StreamResponse() {  }

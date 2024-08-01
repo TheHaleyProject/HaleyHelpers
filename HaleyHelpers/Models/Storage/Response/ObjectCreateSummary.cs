@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public class ObjectCreateSummary :StorageResponse {
+    public class ObjectCreateSummary :Feedback {
         public int Passed { get; set; }
         public int Failed { get; set; }
         public string TotalSizeUploaded { get; set; }

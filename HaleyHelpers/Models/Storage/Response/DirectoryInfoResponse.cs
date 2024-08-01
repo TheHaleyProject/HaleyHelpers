@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public class DirectoryInfoResponse : StorageResponse {
+    public class DirectoryInfoResponse : Feedback {
         public string Path { get; set; }
         public List<string> FoldersList { get; set; } = new List<string>();
         public List<string> FilesList { get; set; } = new List<string>();

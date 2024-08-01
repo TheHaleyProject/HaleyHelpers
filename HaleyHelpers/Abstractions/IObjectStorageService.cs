@@ -13,11 +13,11 @@ namespace Haley.Abstractions {
         //We need Store, Fetch, Delete
         Task<ObjectCreateResponse> Upload(IObjectUploadRequest input);
         Task<StreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true);
-        Task<bool> Delete(IObjectReadRequest input);
-        bool Exists(IObjectReadRequest input);
+        Task<Feedback> Delete(IObjectReadRequest input);
+        Feedback Exists(IObjectReadRequest input);
         long GetSize(IObjectReadRequest input);
         Task<DirectoryInfoResponse> GetDirectoryInfo(IObjectReadRequest input);
         Task<ObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname);
-        Task<bool> DeleteDirectory(IObjectReadRequest input, bool recursive);
+        Task<Feedback> DeleteDirectory(IObjectReadRequest input, bool recursive);
     }
 }
