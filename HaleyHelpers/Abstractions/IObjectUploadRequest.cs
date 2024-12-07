@@ -11,8 +11,8 @@ namespace Haley.Abstractions {
     public interface IObjectUploadRequest : IObjectReadRequest, ICloneable {
         int BufferSize { get; set; }
         Stream  FileStream { get; set; }
-        string ObjectRawName { get; set; }
-        string ObjectId { get; set; }
+        string RawName { get; set; }
+        string Id { get; set; }
         ObjectExistsResolveMode ResolveMode { get; set; }
     }
 }

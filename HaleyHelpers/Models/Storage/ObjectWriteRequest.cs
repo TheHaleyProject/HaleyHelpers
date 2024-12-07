@@ -11,10 +11,10 @@ using System.Xml;
 
 namespace Haley.Models {
     public class ObjectWriteRequest : ObjectReadRequest, IObjectUploadRequest {
-        public string ObjectRawName { get; set; }
+        public string RawName { get; set; }
         public ObjectExistsResolveMode ResolveMode { get; set; } = ObjectExistsResolveMode.ReturnError;
         public int BufferSize { get; set; } = 8192;
-        public string ObjectId { get; set; }
+        public string Id { get; set; }
         public Stream FileStream { get; set; }
         public ObjectWriteRequest() { }
 

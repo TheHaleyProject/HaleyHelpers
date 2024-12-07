@@ -28,7 +28,7 @@ namespace Haley.Services {
         public async Task<ObjectCreateResponse> Upload(IObjectUploadRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
-                RawName = input.ObjectRawName
+                RawName = input.RawName
             };
             try {
                 var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
