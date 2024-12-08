@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using System;
+using Haley.Utils;
 
 namespace Haley.Models {
     public class JWTParameters {
@@ -8,14 +9,13 @@ namespace Haley.Models {
         public string Audience { get; set; }
         public bool ValidateIssuer { get; set; } 
         public bool ValidateAudience { get; set; }
-        public bool IsBaseEncoded { get; set; }
         public double ValidMinutes { get; set; } = 10.0;
         public byte[] GetSecret() {
-            if (!IsBaseEncoded) {
-                return Encoding.ASCII.GetBytes(Secret);
+            if (!Secret.IsBase64()) {
+                return Encoding.UTF8.GetBytes(Secret);
             }
             var _secret = Encoding.UTF8.GetString(Convert.FromBase64String(Secret));
-            return Encoding.ASCII.GetBytes(_secret);
+            return Encoding.UTF8.GetBytes(_secret);
         }
         public JWTParameters() { }
     }
