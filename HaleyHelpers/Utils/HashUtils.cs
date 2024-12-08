@@ -92,17 +92,17 @@ namespace Haley.Utils
         #region ComputeHashes
         public static Guid DeterministicGUID(string input)
         {
-            var inputbytes = Encoding.ASCII.GetBytes(input);
+            var inputbytes = Encoding.UTF8.GetBytes(input);
             return new Guid(ComputeHash(inputbytes, HashMethod.MD5));
         }
 
-        public static string ComputeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true,bool removeHypens = false)
+        public static string ComputeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true)
         {
             MemoryStream ms = new MemoryStream();
             try
             {
                 buffered_stream.CopyTo(ms);
-                return ConvertToString(ComputeHash(ms.ToArray(), method), encodeBase64,removeHypens);
+                return ConvertToString(ComputeHash(ms.ToArray(), method), encodeBase64);
             }
             catch (Exception)
             {
@@ -115,10 +115,10 @@ namespace Haley.Utils
 
         }
 
-        public static string ComputeHash(this string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true, bool removeHypens = false)
+        public static string ComputeHash(this string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
         {
-            var _to_hash_bytes = Encoding.ASCII.GetBytes(to_hash);
-            return ConvertToString(ComputeHash(_to_hash_bytes, method), encodeBase64,removeHypens);
+            var _to_hash_bytes = Encoding.UTF8.GetBytes(to_hash);
+            return ConvertToString(ComputeHash(_to_hash_bytes, method), encodeBase64);
         }
         public static string ComputeHash(FileInfo file_info, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
         {
@@ -145,26 +145,26 @@ namespace Haley.Utils
             switch (method)
             {
                 case HashMethod.MD5:
-                    using (var cryptoProvider = new MD5CryptoServiceProvider())
+                    using (var cryptoProvider = new HMACMD5())
                     {
                         computed_hash = cryptoProvider.ComputeHash(stream_array);
                     }
                     break;
                 case HashMethod.Sha256:
-                    using (var cryptoProvider = new SHA256CryptoServiceProvider())
+                    using (var cryptoProvider = new SHA256Managed())
                     {
                         computed_hash = cryptoProvider.ComputeHash(stream_array);
                     }
                     break;
                 case HashMethod.Sha512:
-                    using (var cryptoProvider = new SHA512CryptoServiceProvider())
+                    using (var cryptoProvider = new SHA512Managed())
                     {
                         computed_hash = cryptoProvider.ComputeHash(stream_array);
                     }
                     break;
                 default:
                 case HashMethod.Sha1:
-                    using (var cryptoProvider = new SHA1CryptoServiceProvider())
+                    using (var cryptoProvider = new SHA1Managed())
                     {
                         computed_hash = cryptoProvider.ComputeHash(stream_array);
                     }
@@ -172,21 +172,19 @@ namespace Haley.Utils
             }
             return computed_hash;
         }
-        private static string ConvertToString(byte[] input, bool encodeBase64,bool removeHypens = false)
+        private static string ConvertToString(byte[] input, bool encodeBase64)
         {
-            switch(encodeBase64)
-            {
-                case true:
-                    return Convert.ToBase64String(input);
-                default:
-                case false:
-                    var result = BitConverter.ToString(input);
-                    if (removeHypens)
-                    {
-                    result = result.Replace("-", "");
-                    }
-                    return result;
+            StringBuilder hashresult = new StringBuilder();
+
+            foreach (var byt in input) {
+                hashresult.Append(byt.ToString("x2"));
             }
+
+            string result = hashresult.ToString();
+
+            if (encodeBase64) result = Convert.ToBase64String(Encoding.UTF8.GetBytes(result));
+
+            return result;
         }
         #endregion
     }

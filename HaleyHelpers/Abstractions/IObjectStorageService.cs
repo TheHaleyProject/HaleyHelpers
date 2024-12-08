@@ -19,5 +19,7 @@ namespace Haley.Abstractions {
         Task<DirectoryInfoResponse> GetDirectoryInfo(IObjectReadRequest input);
         Task<ObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname);
         Task<Feedback> DeleteDirectory(IObjectReadRequest input, bool recursive);
+        Task<(bool status, object result)> AuthorizeClient(object clientInfo, object clientSecret);
+        string GetBasePath();
     }
 }

@@ -24,6 +24,10 @@ namespace Haley.Services {
 
         public string BasePath { get; }
 
+        public string GetBasePath() {
+            return BasePath;
+        }
+
         #region Disk Storage Management 
         public async Task<ObjectCreateResponse> Upload(IObjectUploadRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
@@ -340,6 +344,12 @@ namespace Haley.Services {
             if (req.ObjectLocation.Contains("..")) throw new ArgumentOutOfRangeException("The generated path contains invalid characters. Please fix");
 
             return req.ObjectLocation;
+        }
+
+        public Task<(bool status, object result)> AuthorizeClient(object clientInfo, object clientSecret) {
+            bool status = true;
+            object result = "No default implementation available. All requests authorized.";
+            return Task.FromResult((status,result));
         }
         #endregion
     }
