@@ -12,7 +12,7 @@ namespace Haley.Abstractions {
         //Onus of generating the path doesn't lie with the Storage service.
         //We need Store, Fetch, Delete
         Task<ObjectCreateResponse> Upload(IObjectUploadRequest input);
-        Task<StreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true);
+        Task<FileStreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true);
         Task<Feedback> Delete(IObjectReadRequest input);
         Feedback Exists(IObjectReadRequest input);
         long GetSize(IObjectReadRequest input);

@@ -67,8 +67,8 @@ namespace Haley.Services {
             return result;
         }
 
-        public Task<StreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true) {
-            StreamResponse result = new StreamResponse() { Status = false, Stream = Stream.Null };
+        public Task<FileStreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true) {
+            FileStreamResponse result = new FileStreamResponse() { Status = false, Stream = Stream.Null };
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(result);
 
