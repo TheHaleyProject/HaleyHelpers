@@ -15,7 +15,7 @@ namespace Haley.Internal
     {
         internal sealed class AES
         {
-            public static byte[] Execute(byte[] to_execute, byte[] key, byte[] iv, bool is_encrypt)
+            public static byte[] Execute(byte[] to_execute, byte[] key, byte[] salt, bool is_encrypt)
             {
                 try
                 {
@@ -24,9 +24,9 @@ namespace Haley.Internal
                         rjManaged.Padding = PaddingMode.PKCS7;
                         rjManaged.Mode = CipherMode.CBC;
 
-                        var combinedkey = new Rfc2898DeriveBytes(key, iv, 100);
+                        var combinedkey = new Rfc2898DeriveBytes(key, salt, 100);
                         var _new_key = combinedkey.GetBytes(rjManaged.KeySize / 8);
-                        var _new_iv = combinedkey.GetBytes(rjManaged.BlockSize / 8);
+                        var _new_salt = combinedkey.GetBytes(rjManaged.BlockSize / 8);
 
                         using (MemoryStream mstream = new MemoryStream())
                         {
@@ -36,11 +36,11 @@ namespace Haley.Internal
                             switch (is_encrypt)
                             {
                                 case true: //Then write the stream using an encryptor
-                                    cryptor = rjManaged.CreateEncryptor(_new_key, _new_iv); //Encryptor
+                                    cryptor = rjManaged.CreateEncryptor(_new_key, _new_salt); //Encryptor
                                     break;
 
                                 case false: //Then write the stream using a decryptor.
-                                    cryptor = rjManaged.CreateDecryptor(_new_key, _new_iv); //Decryptor
+                                    cryptor = rjManaged.CreateDecryptor(_new_key, _new_salt); //Decryptor
                                     break;
                             }
 

@@ -106,10 +106,10 @@ namespace Haley.Utils
                     throw;
                 }
             }
-            public static string Decrypt(string to_decrypt, string key, string iv) {
+            public static string Decrypt(string to_decrypt, string key, string salt) {
                 try {
                     if (!to_decrypt.IsBase64()) throw new ArgumentException($@"Input not in base 64 format");
-                    return Encoding.ASCII.GetString(Decrypt(Convert.FromBase64String(to_decrypt), key, iv)); //Because, when decryptd, its not the base 64 byte. Its normal string which is in byte format.
+                    return Encoding.ASCII.GetString(Decrypt(Convert.FromBase64String(to_decrypt), key, salt)); //Because, when decryptd, its not the base 64 byte. Its normal string which is in byte format.
                 } catch (Exception) {
                     throw;
                 }
@@ -133,10 +133,10 @@ namespace Haley.Utils
                     throw ex;
                 }
             }
-            public static byte[] Decrypt(byte[] to_decrypt, string key, string iv) {
+            public static byte[] Decrypt(byte[] to_decrypt, string key, string salt) {
                 try {
                     byte[] _key;
-                    byte[] _iv;
+                    byte[] _salt;
 
                     //GET KEY
                     if (key.IsBase64()) {
@@ -146,13 +146,13 @@ namespace Haley.Utils
                     }
 
                     //GET IV
-                    if (iv.IsBase64()) {
-                        _iv = Convert.FromBase64String(iv);
+                    if (salt.IsBase64()) {
+                        _salt = Convert.FromBase64String(salt);
                     } else {
-                        _iv = Encoding.ASCII.GetBytes(iv);
+                        _salt = Encoding.ASCII.GetBytes(salt);
                     }
 
-                    return EncryptionHelper.AES.Execute(to_decrypt, _key, _iv, false);
+                    return EncryptionHelper.AES.Execute(to_decrypt, _key, _salt, false);
                 } catch (Exception ex) {
                     throw ex;
                 }
@@ -248,8 +248,8 @@ namespace Haley.Utils
         #endregion
 
         #region Extensions
-        public static string Decrypt(this string to_decrypt, string key, string iv) {
-            return Symmetric.Decrypt(to_decrypt, key, iv);
+        public static string Decrypt(this string to_decrypt, string key, string salt) {
+            return Symmetric.Decrypt(to_decrypt, key, salt);
         }
 
         public static (string value, string key, string salt) Encrypt(this string to_encrypt, string key, string salt) {
@@ -267,11 +267,11 @@ namespace Haley.Utils
         public static (string value, string public_key, string private_key) RSAEncrypt(this string to_encrypt) {
             return ASymmetric.Encrypt(to_encrypt);
         }
-        public static string Encrypt(this string to_encrypt, string public_key) {
+        public static string RSAEncrypt(this string to_encrypt, string public_key) {
             return ASymmetric.Encrypt(to_encrypt,public_key);
         }
 
-        public static string Decrypt(this string to_decrypt, string private_key) {
+        public static string RSADecrypt(this string to_decrypt, string private_key) {
             return ASymmetric.Decrypt(to_decrypt,private_key);
         }
 

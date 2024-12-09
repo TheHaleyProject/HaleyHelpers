@@ -6,6 +6,7 @@ using Haley.Models;
 using System.Text;
 using System;
 using System.Net;
+using System.Net.Sockets;
 
 namespace Haley.Utils {
 
@@ -26,11 +27,8 @@ namespace Haley.Utils {
         }
 
         public static string GenerateToken(string key,JwtPayload payload) {
-            var _secret = key;
-            if (key.IsBase64()) {
-                return GenerateToken(Convert.FromBase64String(key), payload);
-            }
-            return GenerateToken(Encoding.UTF8.GetBytes(_secret), payload);
+            if (string.IsNullOrWhiteSpace(key)) throw new ArgumentNullException(nameof(key));
+            return GenerateToken(key.GetBytes(), payload);
         }
 
         public static TokenValidationParameters GenerateTokenValidationParams(JWTParameters jwtparams) {

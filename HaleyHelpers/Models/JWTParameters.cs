@@ -11,11 +11,7 @@ namespace Haley.Models {
         public bool ValidateAudience { get; set; }
         public double ValidMinutes { get; set; } = 10.0;
         public byte[] GetSecret() {
-            if (!Secret.IsBase64()) {
-                return Encoding.UTF8.GetBytes(Secret);
-            }
-            var _secret = Encoding.UTF8.GetString(Convert.FromBase64String(Secret));
-            return Encoding.UTF8.GetBytes(_secret);
+            return Secret?.GetBytes();
         }
         public JWTParameters() { }
     }
