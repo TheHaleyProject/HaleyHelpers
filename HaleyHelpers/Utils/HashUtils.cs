@@ -145,7 +145,9 @@ namespace Haley.Utils
             switch (method)
             {
                 case HashMethod.MD5:
-                    using (var cryptoProvider = new HMACMD5())
+                //NOTE: HMACMD5 generates different hash for same input.
+                //HMACMD5 is used for sending a code not for Hash.
+                    using (var cryptoProvider = new MD5CryptoServiceProvider())
                     {
                         computed_hash = cryptoProvider.ComputeHash(stream_array);
                     }
