@@ -89,91 +89,134 @@ namespace Haley.Utils
         }
         #endregion
 
-        #region ComputeHashes
         public static Guid DeterministicGUID(string input)
         {
             var inputbytes = Encoding.UTF8.GetBytes(input);
             return new Guid(ComputeHash(inputbytes, HashMethod.MD5));
         }
 
-        public static string ComputeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true)
-        {
+        #region Hash
+        public static string ComputeHash(Stream buffered_stream, HashMethod method = HashMethod.MD5, bool encodeBase64 = true) {
             MemoryStream ms = new MemoryStream();
-            try
-            {
+            try {
                 buffered_stream.CopyTo(ms);
                 return ConvertToString(ComputeHash(ms.ToArray(), method), encodeBase64);
-            }
-            catch (Exception)
-            {
+            } catch (Exception) {
                 throw;
-            }
-            finally
-            {
+            } finally {
                 ms.Dispose();
             }
 
         }
-
-        public static string ComputeHash(this string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
-        {
+        public static string ComputeHash(this string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 = true) {
             var _to_hash_bytes = Encoding.UTF8.GetBytes(to_hash);
             return ConvertToString(ComputeHash(_to_hash_bytes, method), encodeBase64);
         }
-        public static string ComputeHash(FileInfo file_info, HashMethod method = HashMethod.MD5, bool encodeBase64 =true)
-        {
-            try
-            {
+        public static string ComputeHash(FileInfo file_info, HashMethod method = HashMethod.MD5, bool encodeBase64 = true) {
+            try {
                 if (file_info.Exists) return null;
-                using (var file_stream = new FileStream(file_info.ToString(), FileMode.Open))
-                {
-                    using (var buffered_stream = new BufferedStream(file_stream))
-                    {
-                        return ComputeHash(buffered_stream,method,encodeBase64);
+                using (var file_stream = new FileStream(file_info.ToString(), FileMode.Open)) {
+                    using (var buffered_stream = new BufferedStream(file_stream)) {
+                        return ComputeHash(buffered_stream, method, encodeBase64);
                     }
                 }
 
-            }
-            catch (Exception)
-            {
+            } catch (Exception) {
                 throw;
             }
         }
-        public static byte[] ComputeHash(byte[] stream_array, HashMethod method = HashMethod.MD5)
-        {
+        public static byte[] ComputeHash(byte[] stream_array, HashMethod method = HashMethod.MD5) {
             byte[] computed_hash = null;
-            switch (method)
-            {
+            switch (method) {
                 case HashMethod.MD5:
                 //NOTE: HMACMD5 generates different hash for same input.
                 //HMACMD5 is used for sending a code not for Hash.
-                    using (var cryptoProvider = new MD5CryptoServiceProvider())
-                    {
-                        computed_hash = cryptoProvider.ComputeHash(stream_array);
-                    }
-                    break;
+                using (var cryptoProvider = new MD5CryptoServiceProvider()) {
+                    computed_hash = cryptoProvider.ComputeHash(stream_array);
+                }
+                break;
                 case HashMethod.Sha256:
-                    using (var cryptoProvider = new SHA256Managed())
-                    {
-                        computed_hash = cryptoProvider.ComputeHash(stream_array);
-                    }
-                    break;
+                using (var cryptoProvider = new SHA256Managed()) {
+                    computed_hash = cryptoProvider.ComputeHash(stream_array);
+                }
+                break;
                 case HashMethod.Sha512:
-                    using (var cryptoProvider = new SHA512Managed())
-                    {
-                        computed_hash = cryptoProvider.ComputeHash(stream_array);
-                    }
-                    break;
+                using (var cryptoProvider = new SHA512Managed()) {
+                    computed_hash = cryptoProvider.ComputeHash(stream_array);
+                }
+                break;
                 default:
                 case HashMethod.Sha1:
-                    using (var cryptoProvider = new SHA1Managed())
-                    {
-                        computed_hash = cryptoProvider.ComputeHash(stream_array);
-                    }
-                    break;
+                using (var cryptoProvider = new SHA1Managed()) {
+                    computed_hash = cryptoProvider.ComputeHash(stream_array);
+                }
+                break;
             }
             return computed_hash;
         }
+        #endregion
+
+        #region Signature
+        public static string ComputeSignature(this Stream buffered_stream, string key,  HashMethod method = HashMethod.MD5, bool encodeBase64 = true) {
+            MemoryStream ms = new MemoryStream();
+            try {
+                buffered_stream.CopyTo(ms);
+                return ConvertToString(ComputeSignature(ms.ToArray(), key, method), encodeBase64);
+            } catch (Exception) {
+                throw;
+            } finally {
+                ms.Dispose();
+            }
+
+        }
+        public static string ComputeSignature(this string to_hash, string key, HashMethod method = HashMethod.MD5, bool encodeBase64 = true) {
+            var hashBytes = Encoding.UTF8.GetBytes(to_hash);
+            return ConvertToString(ComputeSignature(hashBytes,key, method), encodeBase64);
+        }
+        public static string ComputeSignature(this FileInfo file_info, string key, HashMethod method = HashMethod.MD5, bool encodeBase64 = true) {
+            try {
+                if (file_info.Exists) return null;
+                using (var file_stream = new FileStream(file_info.ToString(), FileMode.Open)) {
+                    using (var buffered_stream = new BufferedStream(file_stream)) {
+                        return ComputeSignature(buffered_stream, key,method, encodeBase64);
+                    }
+                }
+
+            } catch (Exception) {
+                throw;
+            }
+        }
+        public static byte[] ComputeSignature(this byte[] stream_array, string key,  HashMethod method = HashMethod.MD5) {
+            byte[] computed_hash = null;
+            byte[] keyBytes = GetBytes(key); 
+            switch (method) {
+                case HashMethod.MD5:
+                //NOTE: HMACMD5 generates different hash for same input.
+                //HMACMD5 is used for sending a code not for Hash.
+                using (var cryptoProvider = new HMACMD5(keyBytes)) {
+                    computed_hash = cryptoProvider.ComputeHash(stream_array);
+                }
+                break;
+                case HashMethod.Sha256:
+                using (var cryptoProvider = new HMACSHA256(keyBytes)) {
+                    computed_hash = cryptoProvider.ComputeHash(stream_array);
+                }
+                break;
+                case HashMethod.Sha512:
+                using (var cryptoProvider = new HMACSHA512(keyBytes)) {
+                    computed_hash = cryptoProvider.ComputeHash(stream_array);
+                }
+                break;
+                default:
+                case HashMethod.Sha1:
+                using (var cryptoProvider = new HMACSHA1(keyBytes)) {
+                    computed_hash = cryptoProvider.ComputeHash(stream_array);
+                }
+                break;
+            }
+            return computed_hash;
+        }
+        #endregion
         private static string ConvertToString(byte[] input, bool encodeBase64)
         {
             StringBuilder hashresult = new StringBuilder();
@@ -188,6 +231,12 @@ namespace Haley.Utils
 
             return result;
         }
-        #endregion
+
+        private static byte[] GetBytes(string input) {
+            if (input.IsBase64()) {
+                return Convert.FromBase64String(input);
+            }
+            return Encoding.UTF8.GetBytes(input);
+        }
     }
 }

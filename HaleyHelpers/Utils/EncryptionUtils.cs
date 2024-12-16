@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Collections;
 using System.Threading.Tasks;
 using System.Management;
 using System.IO;
@@ -12,6 +13,9 @@ using System.Runtime.InteropServices;
 using System.Xml;
 using Haley.Internal;
 using Haley.Models;
+using Haley.Enums;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Haley.Utils
 {
@@ -245,6 +249,7 @@ namespace Haley.Utils
                 return EncryptionHelper.K2017SE.Execute(input_text, sequence);
             }
         }
+
         #endregion
 
         #region Extensions
@@ -282,6 +287,72 @@ namespace Haley.Utils
         public static bool Verify(this XmlDocument input_doc, string _public_key) {
             XML.Verify(input_doc, _public_key, out var result);
             return result;
+        }
+
+        public static string Sign(this string payload, string signatureKey, HashMethod method = HashMethod.Sha256, bool appendInput = true, Dictionary<string,string> headerComponents = null, string encryptKey = null) {
+            string toSign = payload;
+            //For the given input, generate a signature with the ShaSignatureKey
+            if (string.IsNullOrWhiteSpace(toSign)) return null;
+
+            //We need base64 for sure.
+            if (!toSign.IsBase64()) {
+                toSign = Convert.ToBase64String(Encoding.UTF8.GetBytes(toSign));
+            }
+
+            //Encrypt after the base64.
+            if (!string.IsNullOrWhiteSpace(encryptKey)) {
+                var eKey = encryptKey.ComputeHash(HashMethod.Sha256, false);
+               toSign = EncryptionUtils.Encrypt(toSign, eKey, eKey).value;
+            }
+
+            toSign = toSign.SanitizeBase64();
+
+            StringBuilder sb = new StringBuilder();
+            var header = new Dictionary<string, string> {
+                ["alg"] = method.ToString()
+            };
+
+            if (headerComponents != null) {
+                foreach (var item in headerComponents) {
+                    if (!header.ContainsKey(item.Key)) {
+                        header.Add(item.Key, item.Value);
+                    }
+                }
+            }
+
+            sb.Append(header.ToJson().ToBase64().SanitizeBase64()); //Header
+            sb.Append($@".{toSign}"); //payload
+
+            var signature = HashUtils.ComputeSignature(sb.ToString(), signatureKey, method);
+            signature = signature.SanitizeBase64();
+            if (appendInput) {
+                sb.Append($@".{signature}"); //Signature
+                return sb.ToString();
+            }
+            return signature;
+        }
+
+        public static bool Verify(this string input, string signatureKey) {
+            if (string.IsNullOrWhiteSpace(input)) return false;
+            //It should contain three parts.
+
+            var inputArr = input.Split(".".ToCharArray());
+            if (inputArr.Length != 3) throw new ArgumentException("Input not in desired format. Expects three components");
+            var header = inputArr[0].Trim();
+
+            header = header.DeSanitizeBase64();
+            header = Encoding.UTF8.GetString(Convert.FromBase64String(header)); //Get the string of the header.
+            var headerJN = JsonNode.Parse(header);
+            Enum.TryParse<HashMethod>(headerJN["alg"].GetValue<string>(),out var method);
+
+            var payload = inputArr[1].Trim();
+            var signature = inputArr[2].Trim();
+
+            var otherComp = string.Join(".", inputArr.Take(inputArr.Length - 1)); //Take first two only.
+
+            var genSign = HashUtils.ComputeSignature(otherComp, signatureKey, method);
+            genSign = genSign.SanitizeBase64();
+            return signature == genSign;
         }
         #endregion
     }
