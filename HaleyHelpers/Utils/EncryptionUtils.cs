@@ -45,7 +45,7 @@ namespace Haley.Utils
             }
             public static (string value, string key, string salt) Encrypt(string to_encrypt, int key_bits = 512, int salt_bits = 512) {
                 try {
-                    byte[] encrypt_byte = Encoding.ASCII.GetBytes(to_encrypt);
+                    byte[] encrypt_byte = Encoding.UTF8.GetBytes(to_encrypt);
                     var result = Encrypt(encrypt_byte, key_bits, salt_bits);
 
                     return (Convert.ToBase64String(result.value), Convert.ToBase64String(result.key), Convert.ToBase64String(result.salt));
@@ -65,7 +65,7 @@ namespace Haley.Utils
             }
             public static (string value, string key, string salt) Encrypt(string to_encrypt, string key, string salt) {
                 try {
-                    byte[] encrypt_byte = Encoding.ASCII.GetBytes(to_encrypt);
+                    byte[] encrypt_byte = Encoding.UTF8.GetBytes(to_encrypt);
                     var result = Encrypt(encrypt_byte, key, salt);
                     return (Convert.ToBase64String(result.value), Convert.ToBase64String(result.key), Convert.ToBase64String(result.salt));
                 } catch (Exception ex) {
@@ -83,7 +83,7 @@ namespace Haley.Utils
                     if (key == null) {
                         _key = HashUtils.GetRandomBytes(256).bytes;
                     } else if (!key.IsBase64()) {
-                        _key = Encoding.ASCII.GetBytes(key);
+                        _key = Encoding.UTF8.GetBytes(key);
                     } else {
                         _key = Convert.FromBase64String(key);
                     }
@@ -92,7 +92,7 @@ namespace Haley.Utils
                     if (salt == null) {
                         _salt = HashUtils.GetRandomBytes(256).bytes;
                     } else if (!salt.IsBase64()) {
-                        _salt = Encoding.ASCII.GetBytes(salt);
+                        _salt = Encoding.UTF8.GetBytes(salt);
                     } else {
                         _salt = Convert.FromBase64String(salt);
                     }
@@ -113,7 +113,7 @@ namespace Haley.Utils
             public static string Decrypt(string to_decrypt, string key, string salt) {
                 try {
                     if (!to_decrypt.IsBase64()) throw new ArgumentException($@"Input not in base 64 format");
-                    return Encoding.ASCII.GetString(Decrypt(Convert.FromBase64String(to_decrypt), key, salt)); //Because, when decryptd, its not the base 64 byte. Its normal string which is in byte format.
+                    return Encoding.UTF8.GetString(Decrypt(Convert.FromBase64String(to_decrypt), key, salt)); //Because, when decryptd, its not the base 64 byte. Its normal string which is in byte format.
                 } catch (Exception) {
                     throw;
                 }
@@ -146,14 +146,14 @@ namespace Haley.Utils
                     if (key.IsBase64()) {
                         _key = Convert.FromBase64String(key);
                     } else {
-                        _key = Encoding.ASCII.GetBytes(key);
+                        _key = Encoding.UTF8.GetBytes(key);    
                     }
 
                     //GET IV
                     if (salt.IsBase64()) {
                         _salt = Convert.FromBase64String(salt);
                     } else {
-                        _salt = Encoding.ASCII.GetBytes(salt);
+                        _salt = Encoding.UTF8.GetBytes(salt);
                     }
 
                     return EncryptionHelper.AES.Execute(to_decrypt, _key, _salt, false);
@@ -185,7 +185,7 @@ namespace Haley.Utils
                 //We assume that the public Key and private Key are already with the software
                 try {
                     //Asymmetric keys are in xml format.
-                    byte[] _to_encrypt_bytes = Encoding.ASCII.GetBytes(to_encrypt);
+                    byte[] _to_encrypt_bytes = Encoding.UTF8.GetBytes(to_encrypt);
                     var _encrypted = Encrypt(_to_encrypt_bytes, public_key);
                     return Convert.ToBase64String(_encrypted);
                 } catch (Exception) {
@@ -204,7 +204,7 @@ namespace Haley.Utils
                     //The string coming in is a base 64 string.
                     if (!to_decrypt.IsBase64()) throw new ArgumentException("Input not in base 64 format");
                     var result = Decrypt(Convert.FromBase64String(to_decrypt), private_key);
-                    return Encoding.ASCII.GetString(result); //Since result is not in base 64 format.
+                    return Encoding.UTF8.GetString(result); //Since result is not in base 64 format.
                 } catch (Exception) {
                     throw;
                 }
