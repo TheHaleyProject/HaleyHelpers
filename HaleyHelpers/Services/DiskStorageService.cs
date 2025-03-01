@@ -29,7 +29,7 @@ namespace Haley.Services {
         }
 
         #region Disk Storage Management 
-        public async Task<ObjectCreateResponse> Upload(IObjectUploadRequest input) {
+        public async Task<IObjectCreateResponse> Upload(IObjectUploadRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
                 RawName = input.RawName
@@ -67,8 +67,8 @@ namespace Haley.Services {
             return result;
         }
 
-        public Task<FileStreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true) {
-            FileStreamResponse result = new FileStreamResponse() { Status = false, Stream = Stream.Null };
+        public Task<IFileStreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true) {
+            IFileStreamResponse result = new FileStreamResponse() { Status = false, Stream = Stream.Null };
             var path = GetFinalStoragePath(input); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(result);
 
@@ -104,8 +104,8 @@ namespace Haley.Services {
             return Task.FromResult(result); //Stream is open here.
         }
 
-        public Task<Feedback> Delete(IObjectReadRequest input) {
-            var feedback = new Feedback() { Status = false };
+        public Task<IFeedback> Delete(IObjectReadRequest input) {
+            IFeedback feedback = new Feedback() { Status = false };
             var path = GetFinalStoragePath(input, forReadOnly:true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
                 feedback.Message = "Unable to generate path from provided inputs.";
@@ -122,7 +122,7 @@ namespace Haley.Services {
             return Task.FromResult(feedback);
         }
 
-        public Feedback Exists(IObjectReadRequest input) {
+        public IFeedback Exists(IObjectReadRequest input) {
             var feedback = new Feedback() { Status = false };
             var path = GetFinalStoragePath(input,forReadOnly:true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
@@ -146,8 +146,8 @@ namespace Haley.Services {
             return new FileInfo(path).Length;
         }
 
-        public Task<DirectoryInfoResponse> GetDirectoryInfo(IObjectReadRequest input) {
-            DirectoryInfoResponse result = new DirectoryInfoResponse() { Status = false};
+        public Task<IDirectoryInfoResponse> GetDirectoryInfo(IObjectReadRequest input) {
+            IDirectoryInfoResponse result = new DirectoryInfoResponse() { Status = false};
 
             var path = GetFinalStoragePath(input,true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
@@ -168,8 +168,8 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public Task<ObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname) {
-            ObjectCreateResponse result = new ObjectCreateResponse() {
+        public Task<IObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname) {
+            IObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
                 RawName = rawname
             };
@@ -199,8 +199,8 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public Task<Feedback> DeleteDirectory(IObjectReadRequest input, bool recursive) {
-            var feedback = new Feedback() { Status = false };
+        public Task<IFeedback> DeleteDirectory(IObjectReadRequest input, bool recursive) {
+            IFeedback feedback = new Feedback() { Status = false };
             var path = GetFinalStoragePath(input,forReadOnly: true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
                 feedback.Message = "Unable to generate path from provided inputs.";
@@ -248,7 +248,7 @@ namespace Haley.Services {
             }
         }
 
-        bool FilePreProcess(ObjectCreateResponse result, string filePath, ObjectExistsResolveMode conflict) {
+        bool FilePreProcess(IObjectCreateResponse result, string filePath, ObjectExistsResolveMode conflict) {
 
             var targetDir = Path.GetDirectoryName(filePath); //Get only the directory.
 
@@ -346,10 +346,11 @@ namespace Haley.Services {
             return req.ObjectLocation;
         }
 
-        public Task<(bool status, object result)> AuthorizeClient(object clientInfo, object clientSecret) {
-            bool status = true;
-            object result = "No default implementation available. All requests authorized.";
-            return Task.FromResult((status,result));
+        public Task<IFeedback> AuthorizeClient(object clientInfo, object clientSecret) {
+            IFeedback result = new Feedback();
+            result.Status = true;
+            result.Message = "No default implementation available. All requests authorized.";
+            return Task.FromResult(result);
         }
         #endregion
     }
