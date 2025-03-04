@@ -6,57 +6,77 @@ using System.Threading.Tasks;
 using System.Management;
 using System.IO;
 using System.Reflection;
+using Haley.Enums;
+using System.Security.Principal;
 
 namespace Haley.Utils
 {
     public static class IDUtils
     {
-        public static string GetMotherBoardID()
-        {
-            try
-            {
-                //SelectQuery query = new SelectQuery("Win32_processor");
-                //var mng_obj_searcher = new ManagementObjectSearcher(query);
-                var mng_obj_searcher = new ManagementObjectSearcher("Select SerialNumber From Win32_BaseBoard");
-                var collection = mng_obj_searcher.Get();
-                string id = null;
-                    foreach (ManagementObject mgt_obj in collection)
-                    {
-                        id = mgt_obj["SerialNumber"].ToString();
-                        break;
-                    }
-                return id;
+        const string QRY_MO_SNU = @"SELECT SerialNumber FROM Win32_BaseBoard";
+        const string QRY_PR_PID = @"SELECT ProcessorId FROM Win32_processor";
+        const string QRY_CS_UNA = @"SELECT UserName FROM Win32_ComputerSystem";
+
+        static string GetPropertyName(IDObject target) {
+            switch (target) {
+                case IDObject.MotherBoardID:
+                return "SerialNumber";
+                case IDObject.ProcessorID:
+                return "ProcessorId";
+                case IDObject.ComputerUserName:
+                return "UserName";
             }
-            catch (Exception)
-            {
-                return string.Empty;
-            }
+            return "Name";
         }
-        public static string GetProcessorID()
-        {
-            try
-            {
-                var mng_obj_searcher = new ManagementObjectSearcher("Select * From Win32_processor");
-                var collection = mng_obj_searcher.Get();
-                string id = null;
-                    foreach (ManagementObject mgt_obj in collection)
-                    {
-                        id = mgt_obj["ProcessorId"].ToString();
-                        break;
-                    }
-                return id;
+
+        static string GetQuery(IDObject target) {
+            switch (target) {
+                case IDObject.MotherBoardID:
+                return QRY_MO_SNU;
+                case IDObject.ProcessorID:
+                return QRY_PR_PID;
+                case IDObject.ComputerUserName:
+                return QRY_CS_UNA;
             }
-            catch (Exception)
-            {
-                return string.Empty;
+            return string.Empty;
+        }
+
+        public static string GetUserSID(string userName) {
+            try {
+                NTAccount ntAccount = new NTAccount(userName);
+                SecurityIdentifier sid = (SecurityIdentifier)ntAccount.Translate(typeof(SecurityIdentifier));
+                return sid.Value;
+            } catch (Exception ex) {
+                throw;
             }
         }
 
-        public static string GetID()
+        public static string GetID(IDObject target)
         {
             try
             {
-                return (GetMotherBoardID() + "###" +GetProcessorID());
+                var qry = GetQuery(target);
+                if (string.IsNullOrWhiteSpace(qry)) return null;
+                var mo_searcher = new ManagementObjectSearcher(qry);
+                string result = string.Empty;
+                foreach (var mo in mo_searcher.Get()) {
+                    var pname = GetPropertyName(target);
+                    result = mo[pname].ToString();
+                    break;
+                }
+                return result;
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+
+        public static string GetMachineId()
+        {
+            try
+            {
+                return (GetID(IDObject.MotherBoardID) + "###" +GetID(IDObject.ProcessorID));
             }
             catch (Exception)
             {
