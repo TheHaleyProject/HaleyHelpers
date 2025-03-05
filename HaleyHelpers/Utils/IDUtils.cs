@@ -8,6 +8,7 @@ using System.IO;
 using System.Reflection;
 using Haley.Enums;
 using System.Security.Principal;
+using System.Runtime.InteropServices;
 
 namespace Haley.Utils
 {
@@ -43,6 +44,7 @@ namespace Haley.Utils
 
         public static string GetUserSID(string userName) {
             try {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return string.Empty;
                 NTAccount ntAccount = new NTAccount(userName);
                 SecurityIdentifier sid = (SecurityIdentifier)ntAccount.Translate(typeof(SecurityIdentifier));
                 return sid.Value;
@@ -55,6 +57,7 @@ namespace Haley.Utils
         {
             try
             {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return string.Empty;
                 var qry = GetQuery(target);
                 if (string.IsNullOrWhiteSpace(qry)) return null;
                 var mo_searcher = new ManagementObjectSearcher(qry);
@@ -76,6 +79,7 @@ namespace Haley.Utils
         {
             try
             {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return string.Empty;
                 return (GetID(IDObject.MotherBoardID) + "###" +GetID(IDObject.ProcessorID));
             }
             catch (Exception)
