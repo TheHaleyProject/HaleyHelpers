@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Management;
 using System.IO;
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
 
 namespace Haley.Utils
 {
@@ -66,6 +67,39 @@ namespace Haley.Utils
             {
                 throw ex;
             }
+        }
+
+        public static IConfigurationRoot GenerateConfigurationRoot(string[] jsonPaths = null, string basePath = null) {
+            var builder = new ConfigurationBuilder();
+            var jsonlist = jsonPaths?.ToList() ?? new List<string>();
+            if (basePath == null) basePath = AssemblyUtils.GetBaseDirectory(); ; //Hopefully both interface DLL and the main app dll are in same directory where the json files are present.
+            builder.SetBasePath(basePath); // let us load the file from a specific directory
+
+            if (jsonlist == null || jsonlist.Count < 1) {
+                jsonlist = new List<string>() { "appsettings", "connections" }; //add these two default jsons.
+            }
+
+            if (!jsonlist.Contains("appsettings")) jsonlist.Add("appsettings");
+            if (!jsonlist.Contains("connections")) jsonlist.Add("connections");
+
+            foreach (var path in jsonlist) {
+                if (path == null) continue;
+                string finalFilePath = path.Trim();
+                if (!finalFilePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) && finalFilePath != null) {
+                    finalFilePath += ".json";
+                }
+
+                //Assume it is an absolute path
+                if (!File.Exists(finalFilePath)) {
+                    //We assumed it was an abolute path and it doesn't exists.. What if it is a relative path?
+                    //Combine with base path and check if it exists.
+                    if (!File.Exists(Path.Combine(basePath, finalFilePath))) continue;
+                }
+                //If we reach here then the file is present, regardless of whether it is absolute or relative.
+
+                builder.AddJsonFile(finalFilePath);
+            }
+            return builder.Build();
         }
     }
 }
