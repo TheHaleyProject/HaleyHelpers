@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 
 namespace Haley.Utils
 {
-    public static class IDUtils
+    public static class AssetUtils
     {
         const string QRY_MO_SNU = @"SELECT SerialNumber FROM Win32_BaseBoard";
         const string QRY_PR_PID = @"SELECT ProcessorId FROM Win32_processor";
