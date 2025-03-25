@@ -71,10 +71,14 @@ namespace Haley.Utils
         }
 
         public static List<Dictionary<string, object>> GetProperties(AssetType target, string[] propNames = null) {
-            return GetPropertiesInternal(target, propNames);
+            return GetPropertiesInternal(target, false, propNames);
         }
 
-        static List<Dictionary<string, object>> GetPropertiesInternal(AssetType target, string[] filter = null) {
+        public static List<Dictionary<string, object>> GetProperties(AssetType target, bool shortToString, string[] propNames = null) {
+            return GetPropertiesInternal(target, shortToString,propNames);
+        }
+
+        static List<Dictionary<string, object>> GetPropertiesInternal(AssetType target, bool convert,  string[] filter) {
             try {
                 List<Dictionary<string, object>> result = new List<Dictionary<string, object>>();
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return result;
@@ -87,7 +91,9 @@ namespace Haley.Utils
                     if (filter != null && filter.Length > 0) {
                         foreach (var prop in filter.Distinct()) {
                             try {
-                                localRes.Add(prop, mo[prop]);
+                                var value = mo[prop];
+                                if (convert && value is short[] valShort) value = valShort.Convert();
+                                localRes.Add(prop, value);
                             } catch (Exception) {
                                 continue;
                             }
@@ -95,7 +101,9 @@ namespace Haley.Utils
                     } else {
                         foreach (var moProp in mo.Properties) {
                             try {
-                                localRes.Add(moProp.Name, moProp.Value);
+                                var value = moProp.Value;
+                                if (convert && value is short[] valShort) value = valShort.Convert();
+                                localRes.Add(moProp.Name, value);
                             } catch (Exception) {
                                 continue;
                             }
@@ -115,7 +123,7 @@ namespace Haley.Utils
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return string.Empty;
                 var info = GetAssetInfo(target);
-                var propResult = GetPropertiesInternal(info.type, new string[] { info.prop });
+                var propResult = GetPropertiesInternal(info.type, false, new string[] { info.prop });
                 return propResult.First()?.Values?.First()?.ToString() ?? null;
             } catch (Exception) {
                 throw;
