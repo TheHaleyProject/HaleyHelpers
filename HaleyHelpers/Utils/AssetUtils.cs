@@ -10,6 +10,7 @@ using Haley.Enums;
 using System.Security.Principal;
 using System.Runtime.InteropServices;
 using Haley.Models;
+using System.Runtime.CompilerServices;
 
 //List<(string query, string scope)> queryTuple = new List<(string query, string scope)>();
 //queryTuple.Add(("select * from win32_bios", string.Empty));
@@ -40,10 +41,6 @@ namespace Haley.Utils
 {
     public static class AssetUtils
     {
-        const string QRY_MO_SNU = @"SELECT SerialNumber FROM Win32_BaseBoard";
-        const string QRY_PR_PID = @"SELECT ProcessorId FROM Win32_processor";
-        const string QRY_CS_UNA = @"SELECT UserName FROM Win32_ComputerSystem";
-
         static (AssetType type,string prop) GetAssetInfo (AssetIdentifier target) {
             switch (target) {
                 case AssetIdentifier.MotherBoardID:
@@ -54,10 +51,11 @@ namespace Haley.Utils
                 return (AssetType.Computer, "UserName");
                 case AssetIdentifier.BIOSID:
                 return (AssetType.BIOS, "SerialNumber");
+                case AssetIdentifier.ComputerUserFullName:
+                return (AssetType.UserAccount, "FullName");
             }
             throw new NotImplementedException();
         }
-
 
         public static string GetUserSID(string userName) {
             try {
@@ -70,30 +68,49 @@ namespace Haley.Utils
             }
         }
 
-        public static List<Dictionary<string, object>> GetProperties(AssetType target, string[] propNames = null) {
-            return GetPropertiesInternal(target, false, propNames);
+        public static List<Dictionary<string, object>> GetProperties(AssetType target, params object[] propNames) {
+            return GetProperties(target, false, propNames);
         }
 
-        public static List<Dictionary<string, object>> GetProperties(AssetType target, bool shortToString, string[] propNames = null) {
-            return GetPropertiesInternal(target, shortToString,propNames);
+        public static List<Dictionary<string, object>> GetProperties(AssetType target, bool shortToString, params object[] propNames) {
+            var qry = $@"select * from {target.GetDescription()}";
+            var scope = target.GetAttributeValue<ScopeAttribute>();
+            return GetProperties(qry,scope, shortToString,propNames);
         }
 
-        static List<Dictionary<string, object>> GetPropertiesInternal(AssetType target, bool convert,  string[] filter) {
+        public static List<Dictionary<string, object>> GetProperties(string query, string scope, bool shortToString, params object[] propNames) {
+            return GetPropertiesInternal(query, scope, shortToString, propNames);
+        }
+
+        static List<Dictionary<string, object>> GetPropertiesInternal(string query, string scope, bool shortToString, params object[] filter) {
             try {
                 List<Dictionary<string, object>> result = new List<Dictionary<string, object>>();
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return result;
-                var qry = $@"select * from {target.GetDescription()}";
-                var mo_searcher = new ManagementObjectSearcher(qry);
-                var scope = target.GetAttributeValue<ScopeAttribute>();
+                var mo_searcher = new ManagementObjectSearcher(query);
                 if (!string.IsNullOrWhiteSpace(scope)) mo_searcher.Scope = new ManagementScope(scope);
                 foreach (var mo in mo_searcher.Get()) {
                     Dictionary<string, object> localRes = new Dictionary<string, object>();
                     if (filter != null && filter.Length > 0) {
-                        foreach (var prop in filter.Distinct()) {
+                        foreach (var prop in filter) {
                             try {
-                                var value = mo[prop];
-                                if (convert && value is short[] valShort) value = valShort.Convert();
-                                localRes.Add(prop, value);
+                                if (prop == null) continue;
+                                object value = null;
+                                string propKey = null;
+                                bool ToSize = false;
+                                if (prop is string propStr) {
+                                    propKey = propStr;
+                                } else if (prop is ValueTuple<string,bool> propTup) {
+                                    propKey = propTup.Item1;
+                                    ToSize = propTup.Item2;
+                                } else {
+                                    continue;
+                                }
+                                    value = mo[propKey];
+                                if (ToSize && Double.TryParse(value.ToString(),out var res)) {
+                                    value = res.ToFileSize();
+                                }
+                                if (shortToString && value is short[] valShort) value = valShort.Convert();
+                                localRes.Add(propKey, value);
                             } catch (Exception) {
                                 continue;
                             }
@@ -102,7 +119,7 @@ namespace Haley.Utils
                         foreach (var moProp in mo.Properties) {
                             try {
                                 var value = moProp.Value;
-                                if (convert && value is short[] valShort) value = valShort.Convert();
+                                if (shortToString && value is short[] valShort) value = valShort.Convert();
                                 localRes.Add(moProp.Name, value);
                             } catch (Exception) {
                                 continue;
@@ -122,8 +139,14 @@ namespace Haley.Utils
             try
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return string.Empty;
+                if (target is AssetIdentifier.ComputerUserFullName) {
+                    var userName = GetId(AssetIdentifier.ComputerUserName);
+                    var results = GetProperties(AssetType.UserAccount, "Caption", "FullName");
+                    return results.First(p => p["Caption"].ToString() == userName)["FullName"]?.ToString();
+                }
                 var info = GetAssetInfo(target);
-                var propResult = GetPropertiesInternal(info.type, false, new string[] { info.prop });
+                //If we are trying to get Full name, we first need to get the SID of the user and then the FullName
+                var propResult = GetProperties(info.type, false, info.prop);
                 return propResult.First()?.Values?.First()?.ToString() ?? null;
             } catch (Exception) {
                 throw;
