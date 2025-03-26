@@ -67,14 +67,14 @@ namespace Haley.Utils
         }
 
         public static List<Dictionary<string, object>> GetProperties(AssetType target, params object[] propFilter) {
-            return GetProperties(target, null, false, propFilter);
+            return GetPropertiesEx(target, null, false, propFilter);
         }
 
-        public static List<Dictionary<string, object>> GetProperties(AssetType target, string queryFilter, params object[] propFilter) {
-            return GetProperties(target, queryFilter, false, propFilter);
+        public static List<Dictionary<string, object>> GetPropertiesEx(AssetType target, string queryFilter, params object[] propFilter) {
+            return GetPropertiesEx(target, queryFilter, false, propFilter);
         }
 
-        public static List<Dictionary<string, object>>  GetProperties(AssetType target, string queryFilter, bool shortToString, params object[] propFilter) {
+        public static List<Dictionary<string, object>>  GetPropertiesEx(AssetType target, string queryFilter, bool shortToString, params object[] propFilter) {
             var qry = $@"select * from {target.GetDescription()}";
             if (!string.IsNullOrWhiteSpace(queryFilter)) {
                 qry += " " + $@"where {queryFilter}";
@@ -134,8 +134,8 @@ namespace Haley.Utils
                     result.Add(localRes);
                 }
                 return result;
-            } catch (Exception) {
-                throw;
+            } catch (Exception ex) {
+                throw new Exception($@"Error while processing query : {query} for scope {scope}. {Environment.NewLine}. {ex.Message}");
             }
         }
 
@@ -151,7 +151,7 @@ namespace Haley.Utils
             try {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return null;
                 if (string.IsNullOrWhiteSpace(userName)) userName = GetId(AssetIdentifier.ComputerUserName);
-                var results = AssetUtils.GetProperties(AssetType.UserAccount, queryFilter: $@"Name = '{userName.Split('\\').Last()}'", propFilter);
+                var results = AssetUtils.GetPropertiesEx(AssetType.UserAccount, queryFilter: $@"Name = '{userName.Split('\\').Last()}'", propFilter);
                 return results.First();
             } catch (Exception) {
                 return null;
@@ -165,7 +165,7 @@ namespace Haley.Utils
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return string.Empty;
                 var info = GetAssetInfo(target);
                 //If we are trying to get Full name, we first need to get the SID of the user and then the FullName
-                var propResult = GetProperties(info.type, null, false, info.prop);
+                var propResult = GetPropertiesEx(info.type, null, false, info.prop);
                 return propResult.First()?.Values?.First()?.ToString() ?? null;
             } catch (Exception) {
                 throw;
