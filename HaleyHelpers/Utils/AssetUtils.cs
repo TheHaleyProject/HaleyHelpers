@@ -51,8 +51,6 @@ namespace Haley.Utils
                 return (AssetType.Computer, "UserName");
                 case AssetIdentifier.BIOSID:
                 return (AssetType.BIOS, "SerialNumber");
-                case AssetIdentifier.ComputerUserFullName:
-                return (AssetType.UserAccount, "FullName");
             }
             throw new NotImplementedException();
         }
@@ -68,21 +66,28 @@ namespace Haley.Utils
             }
         }
 
-        public static List<Dictionary<string, object>> GetProperties(AssetType target, params object[] propNames) {
-            return GetProperties(target, false, propNames);
+        public static List<Dictionary<string, object>> GetProperties(AssetType target, params object[] propFilter) {
+            return GetProperties(target, null, false, propFilter);
         }
 
-        public static List<Dictionary<string, object>> GetProperties(AssetType target, bool shortToString, params object[] propNames) {
+        public static List<Dictionary<string, object>> GetProperties(AssetType target, string queryFilter, params object[] propFilter) {
+            return GetProperties(target, queryFilter, false, propFilter);
+        }
+
+        public static List<Dictionary<string, object>>  GetProperties(AssetType target, string queryFilter, bool shortToString, params object[] propFilter) {
             var qry = $@"select * from {target.GetDescription()}";
+            if (!string.IsNullOrWhiteSpace(queryFilter)) {
+                qry += " " + $@"where {queryFilter}";
+            }
             var scope = target.GetAttributeValue<ScopeAttribute>();
-            return GetProperties(qry,scope, shortToString,propNames);
+            return GetProperties(qry,scope, shortToString,propFilter);
         }
 
-        public static List<Dictionary<string, object>> GetProperties(string query, string scope, bool shortToString, params object[] propNames) {
-            return GetPropertiesInternal(query, scope, shortToString, propNames);
+        public static List<Dictionary<string, object>> GetProperties(string query, string scope, bool shortToString, params object[] propFilter) {
+            return GetPropertiesInternal(query, scope, shortToString, propFilter);
         }
 
-        static List<Dictionary<string, object>> GetPropertiesInternal(string query, string scope, bool shortToString, params object[] filter) {
+        static List<Dictionary<string, object>> GetPropertiesInternal(string query, string scope, bool shortToString, params object[] propFilter) {
             try {
                 List<Dictionary<string, object>> result = new List<Dictionary<string, object>>();
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return result;
@@ -90,8 +95,8 @@ namespace Haley.Utils
                 if (!string.IsNullOrWhiteSpace(scope)) mo_searcher.Scope = new ManagementScope(scope);
                 foreach (var mo in mo_searcher.Get()) {
                     Dictionary<string, object> localRes = new Dictionary<string, object>();
-                    if (filter != null && filter.Length > 0) {
-                        foreach (var prop in filter) {
+                    if (propFilter != null && propFilter.Length > 0) {
+                        foreach (var prop in propFilter) {
                             try {
                                 if (prop == null) continue;
                                 object value = null;
@@ -134,19 +139,33 @@ namespace Haley.Utils
             }
         }
 
+        public static string GetUserFullName(string userName = null) {
+            return GetUserAccountInternal(userName, "FullName")?.Values?.First()?.ToString();
+        }
+
+        public static Dictionary<string,object> GetUserAccount(string userName = null) {
+            return GetUserAccountInternal(userName);
+        }
+
+        static Dictionary<string, object> GetUserAccountInternal(string userName, params object[] propFilter) {
+            try {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return null;
+                if (string.IsNullOrWhiteSpace(userName)) userName = GetId(AssetIdentifier.ComputerUserName);
+                var results = AssetUtils.GetProperties(AssetType.UserAccount, queryFilter: $@"Name = '{userName.Split('\\').Last()}'", propFilter);
+                return results.First();
+            } catch (Exception) {
+                return null;
+            }
+        }
+
         public static string GetId(AssetIdentifier target)
         {
             try
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return string.Empty;
-                if (target is AssetIdentifier.ComputerUserFullName) {
-                    var userName = GetId(AssetIdentifier.ComputerUserName);
-                    var results = GetProperties(AssetType.UserAccount, "Caption", "FullName");
-                    return results.First(p => p["Caption"].ToString() == userName)["FullName"]?.ToString();
-                }
                 var info = GetAssetInfo(target);
                 //If we are trying to get Full name, we first need to get the SID of the user and then the FullName
-                var propResult = GetProperties(info.type, false, info.prop);
+                var propResult = GetProperties(info.type, null, false, info.prop);
                 return propResult.First()?.Values?.First()?.ToString() ?? null;
             } catch (Exception) {
                 throw;
