@@ -10,12 +10,13 @@ using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using System.Collections;
 using System.Collections.Generic;
+using Haley.Utils;
 
 namespace Haley.Services {
     public class MailService  {
         public bool IsInitialized { get; private set; }
         //REGEX IS NOT THREAD SAFE. SO USE ONLY THE STRING.
-        string emailPattern = @"^[\w\-_.]+@([\w\-_]+\.)+[\w\-_]{2,4}$";
+        
         EmailServiceConfig _param;
         ILogger<MailService> _logger;
 
@@ -43,11 +44,12 @@ namespace Haley.Services {
             data.Body = data.Body ?? "(No Body)";
         }
 
-        public async Task SendEmailAsync(EmailData data) {
+        public async Task<IFeedback> SendEmailAsync(EmailData data) {
+            Feedback result = new Feedback();
             try {
-                if (!IsInitialized) throw new InvalidOperationException("EmailService not initialized");
-                if (_param == null) throw new ArgumentException("SMTP details are missing");
-                if (data == null) return; //nothing to send.
+                if (!IsInitialized) return result.SetStatus(false).SetMessage("EmailService not initialized");
+                if (_param == null) return result.SetStatus(false).SetMessage("SMTP details are missing");
+                if (data == null) return result.SetStatus(false).SetMessage("Empty inputs. Nothing to send"); 
 
                 Sanitize(data);
 
@@ -73,25 +75,22 @@ namespace Haley.Services {
                         await smtpCli.SendMailAsync(message);
                     }
                 }
-                
-                //After sending, store it in the db.
+                return result.Clear().SetStatus(true);
             } catch (Exception ex) {
-                _logger?.LogError(ex, "Error during mail send");
-                throw ex;
+                return result.SetStatus(false).SetMessage("Error during mail send").SetResult(ex); 
             }
         }
 
         private MailAddress GetValidAddress(string input, string fallback) {
-            var emailRegex = new Regex(emailPattern);
-            return emailRegex.IsMatch(input ?? string.Empty)
+           
+            return input.IsValidEmail()
                 ? new MailAddress(input)
                 : new MailAddress(fallback);
         }
 
         private void AddAddresses(MailAddressCollection collection, IEnumerable<string> addresses) {
-            var emailRegex = new Regex(emailPattern);
             foreach (var email in addresses ?? Enumerable.Empty<string>()) {
-                if (emailRegex.IsMatch(email))
+                if (email.IsValidEmail())
                     collection.Add(new MailAddress(email));
             }
         }
