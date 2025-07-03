@@ -37,6 +37,7 @@ namespace Haley.Services {
         void Sanitize(EmailData data) {
             //remove all the null values.
             data.CC = data.CC?.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray() ?? new string[0];
+            data.BCC = data.BCC?.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray() ?? new string[0];
             data.To = data.To?.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray() ?? new string[0];
             data.ReplyTo = data.ReplyTo?.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray() ?? new string[0];
             data.From = data.From ?? _param.DefaultSender;
@@ -58,6 +59,7 @@ namespace Haley.Services {
                     message.From = GetValidAddress(data.From, _param.DefaultSender);
                     AddAddresses(message.To, data.To);
                     AddAddresses(message.CC, data.CC);
+                    AddAddresses(message.Bcc, data.BCC);
                     AddAddresses(message.ReplyToList, data.ReplyTo);
 
                     message.Subject = data.Subject;
