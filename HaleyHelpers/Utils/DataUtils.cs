@@ -1,6 +1,7 @@
 ﻿using Haley.Abstractions;
 using Haley.Enums;
 using Haley.Models;
+using Microsoft.IdentityModel.Tokens.Experimental;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,7 +20,7 @@ namespace Haley.Utils
         public static async Task<IFeedback> PagedDataFetch<T>(List<T> source, Func<int, int, Task<List<T>>> dataprovider,
             int count = 100) {
             int skip = 0;
-
+            
             while (true) {
                 List<T> datalist;
                 try {
@@ -35,21 +36,28 @@ namespace Haley.Utils
             return new Feedback(true, $"Fetched {source.Count} items successfully.");
         }
 
-        public static IEnumerable<object> RecursiveGroup<T,K>(IEnumerable<T> input, List<K> keys, Func<T,K,object> groupMaker, Func<object,IEnumerable<object>, object>resultMaker, int level = 0) {
-            if (level >= keys.Count || input.Count() == 0) return Enumerable.Empty<object>();
-            var currentKey = keys[level];
-            return input
-                .GroupBy(p => groupMaker(p,currentKey))
-                .Select(gp => {
-                    var children = (level + 1 < keys.Count)
-                        ? RecursiveGroup(gp.ToList(), keys, groupMaker,resultMaker, level + 1)
-                        : null;
-                    // You can customize the output shape here
-                    return  resultMaker(gp.Key, children ?? Enumerable.Empty<object>());
-                });
+        public static IEnumerable<object> RecursiveGroup<T,K>(IEnumerable<T> input, List<K> keys, Func<T, K, int, object> groupMaker, Func<object,object,int, object>resultMaker) {
+            return RecursiveGroupInternal(input, keys, groupMaker, resultMaker, 0);
         }
 
-        public static IEnumerable<>
+        //TO DO : CHECK ABOUT CREATING TUPLES WITH REFLECTION.....
+        //think about dynamic key selectors
+        static IEnumerable<object> RecursiveGroupInternal<T, K>(IEnumerable<T> input, List<K> keys, Func<T, K,int, object> groupMaker, Func<object, object,int, object> resultMaker, int level = 0) {
+            if (input == null) return Enumerable.Empty<object>();
+            var materialized = input.ToList();
+            if (level >= keys.Count || materialized.Count == 0) return Enumerable.Empty<object>();
+            var currentKey = keys[level];
+            return materialized //materialize
+                .GroupBy(row => 
+                groupMaker(row, currentKey,level))
+                .Select(gp => {
+                    var children = (level + 1 < keys.Count) //Should we go for one more hierarchical level??
+                        ? RecursiveGroupInternal(gp, keys, groupMaker, resultMaker, level + 1)
+                        : resultMaker(gp.Key, gp.ToList(), level+1); //If we reach the end, we still need to allow to process all the children
+                    // You can customize the output shape here
+                    return resultMaker(gp.Key, children ?? Enumerable.Empty<object>(),level);
+                });
+        }
 
     }
 }
