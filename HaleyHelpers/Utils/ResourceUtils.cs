@@ -12,6 +12,37 @@ namespace Haley.Utils
 {
     public static class ResourceUtils
     {
+
+        public static object FetchVariable(params string[] name) {
+            return FetchVariable(null, name);
+        }
+
+        public static object FetchVariable(IConfiguration cfg, params string[] name) {
+            //Search for a variable name
+            if (name.Length < 1) return string.Empty;
+            object value = null;
+
+            //1. Preference to Environment variables
+            foreach (var key in name) {
+                value = Environment.GetEnvironmentVariable(key);
+                if (value != null) return value;
+            }
+
+            //2. Appsettings.json
+
+            if (cfg == null) {
+                cfg = GenerateConfigurationRoot();
+                if (cfg == null) return string.Empty;
+            }
+
+            foreach (var key in name) {
+                value = cfg[key];
+                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value))) return value;
+            }
+
+            return string.Empty;
+        }
+
         public static string[] GetResourceNames(Assembly assembly_name = null) {
             if (assembly_name == null) {
                 assembly_name = Assembly.GetCallingAssembly();
