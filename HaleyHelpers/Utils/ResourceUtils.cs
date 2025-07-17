@@ -7,40 +7,42 @@ using System.Management;
 using System.IO;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
+using Haley.Abstractions;
+using Haley.Models;
 
 namespace Haley.Utils
 {
     public static class ResourceUtils
     {
 
-        public static object FetchVariable(params string[] name) {
+        public static IFeedback FetchVariable(params string[] name) {
             return FetchVariable(null, name);
         }
 
-        public static object FetchVariable(IConfiguration cfg, params string[] name) {
+        public static IFeedback FetchVariable(IConfiguration cfg, params string[] name) {
             //Search for a variable name
-            if (name.Length < 1) return string.Empty;
+            if (name.Length < 1) return new Feedback(false, "No variable name provided");
             object value = null;
 
             //1. Preference to Environment variables
             foreach (var key in name) {
                 value = Environment.GetEnvironmentVariable(key);
-                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value))) return value;
+                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value))) return new Feedback(true).SetResult(value);
             }
 
             //2. Appsettings.json
 
             if (cfg == null) {
                 cfg = GenerateConfigurationRoot();
-                if (cfg == null) return string.Empty;
+                if (cfg == null) return new Feedback(false, "Unable to generate configuration root");
             }
 
             foreach (var key in name) {
                 value = cfg[key];
-                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value))) return value;
+                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value))) return new Feedback(true).SetResult(value);
             }
 
-            return string.Empty;
+            return new Feedback(false, "Operation completed. No value found.");
         }
 
         public static string[] GetResourceNames(Assembly assembly_name = null) {
