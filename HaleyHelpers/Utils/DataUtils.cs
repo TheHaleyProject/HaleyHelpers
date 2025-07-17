@@ -58,6 +58,5 @@ namespace Haley.Utils
                     return resultMaker(gp.Key, children ?? Enumerable.Empty<object>(),level);
                 });
         }
-
     }
 }

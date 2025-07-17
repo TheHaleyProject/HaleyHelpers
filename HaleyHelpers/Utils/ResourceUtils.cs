@@ -25,7 +25,7 @@ namespace Haley.Utils
             //1. Preference to Environment variables
             foreach (var key in name) {
                 value = Environment.GetEnvironmentVariable(key);
-                if (value != null) return value;
+                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value))) return value;
             }
 
             //2. Appsettings.json
