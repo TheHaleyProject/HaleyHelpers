@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<project name="haley-dss" database="MariaDb" id="93003ef9-df78-41a8-abf9-c1beee74eaca" >
+	<schema name="dss_client" virtual="y" >
+		<table name="extensions" prior="file_extension" >
+			<column name="id" type="INT" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="name" type="VARCHAR" length="100" mandatory="y" />
+			<index name="pk_file_extensions" unique="PRIMARY_KEY" >
+				<column name="id" />
+			</index>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+		<table name="file_extension" prior="file_extensions" >
+			<column name="file" type="BIGINT" mandatory="y" />
+			<column name="extension" type="INT" mandatory="y" />
+			<index name="pk_file_extension" unique="PRIMARY_KEY" >
+				<column name="file" />
+			</index>
+			<fk name="fk_file_extension_file_index" to_schema="dss_client" to_table="file_index" >
+				<fk_column name="file" pk="id" />
+			</fk>
+			<fk name="fk_file_extension_extensions" to_schema="dss_client" to_table="extensions" >
+				<fk_column name="extension" pk="id" />
+			</fk>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+		<table name="file_index" prior="fileindex" >
+			<column name="parent" type="BIGINT" mandatory="y" />
+			<column name="id" type="BIGINT" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="guid" type="VARCHAR" length="48" mandatory="y" >
+				<defo><![CDATA['uuid()']]></defo>
+			</column>
+			<index name="pk_fileindex" unique="PRIMARY_KEY" >
+				<column name="id" />
+			</index>
+			<index name="unq_file_index" unique="UNIQUE_KEY" >
+				<column name="guid" />
+			</index>
+			<fk name="fk_file_index_parent" to_schema="dss_client" to_table="parent" >
+				<fk_column name="parent" pk="id" />
+			</fk>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+		<table name="file_name" prior="file_info" >
+			<column name="file" type="BIGINT" mandatory="y" />
+			<column name="managed_name" type="VARCHAR" length="300" mandatory="y" />
+			<column name="original_name" type="VARCHAR" length="400" mandatory="y" />
+			<index name="pk_file_info_0" unique="PRIMARY_KEY" >
+				<column name="file" />
+			</index>
+			<index name="idx_file_name" unique="NORMAL" >
+				<column name="original_name" />
+			</index>
+			<index name="idx_file_name_0" unique="NORMAL" >
+				<column name="managed_name" />
+			</index>
+			<fk name="fk_file_info_file_index_0" to_schema="dss_client" to_table="file_index" >
+				<fk_column name="file" pk="id" />
+			</fk>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+		<table name="file_path" prior="file_pa" >
+			<column name="version" prior="file" type="BIGINT" mandatory="y" />
+			<column name="parent" type="BIGINT" mandatory="y" />
+			<column name="path" type="TEXT" mandatory="y" />
+			<index name="pk_file_path" unique="PRIMARY_KEY" >
+				<column name="version" />
+			</index>
+			<index name="unq_file_path" unique="UNIQUE_KEY" >
+				<column name="parent" />
+				<column name="path" />
+			</index>
+			<index name="idx_file_path" unique="NORMAL" >
+				<column name="path" />
+				<column name="parent" />
+			</index>
+			<fk name="fk_file_path_parent" to_schema="dss_client" to_table="parent" >
+				<fk_column name="parent" pk="id" />
+			</fk>
+			<fk name="fk_file_path_file_version" to_schema="dss_client" to_table="file_version" >
+				<fk_column name="version" pk="id" />
+			</fk>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+		<table name="file_version" prior="file_ve" >
+			<column name="id" type="BIGINT" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="file" type="BIGINT" mandatory="y" />
+			<column name="uploaded_time" type="DATETIME" mandatory="y" >
+				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
+			</column>
+			<column name="size" type="BIGINT" mandatory="y" >
+				<comment><![CDATA[in bytes]]></comment>
+			</column>
+			<column name="version" type="INT" mandatory="y" >
+				<defo><![CDATA[1]]></defo>
+			</column>
+			<index name="pk_file_version" unique="PRIMARY_KEY" >
+				<column name="id" />
+			</index>
+			<index name="idx_file_version" unique="NORMAL" >
+				<column name="file" />
+				<column name="version" />
+			</index>
+			<index name="idx_file_version_0" unique="NORMAL" >
+				<column name="uploaded_time" />
+			</index>
+			<fk name="fk_file_version_file_index" to_schema="dss_client" to_table="file_index" >
+				<fk_column name="file" pk="id" />
+			</fk>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+		<table name="parent" prior="paren" >
+			<column name="id" type="BIGINT" mandatory="y" />
+			<index name="pk_parent" unique="PRIMARY_KEY" >
+				<column name="id" />
+			</index>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+	</schema>
+	<schema name="dss_core" >
+		<table name="client" spec="" >
+			<column name="id" type="INT" length="11" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="name" type="VARCHAR" length="100" mandatory="y" />
+			<column name="fullname" prior="displayname" type="VARCHAR" length="240" mandatory="y" />
+			<column name="managed_name" prior="managedname" type="VARCHAR" length="140" mandatory="y" >
+				<comment><![CDATA[managedname is based on the name (not) the fullname]]></comment>
+			</column>
+			<column name="guid" type="VARCHAR" length="48" mandatory="y" >
+				<defo><![CDATA[uuid()]]></defo>
+				<comment><![CDATA[this guid is used to create separate schema for all the clients where in the files will be stored.]]></comment>
+			</column>
+			<column name="path" type="VARCHAR" length="140" mandatory="y" />
+			<column name="created_on" type="DATETIME" mandatory="y" >
+				<defo><![CDATA[current_timestamp()]]></defo>
+			</column>
+			<column name="notes" type="VARCHAR" length="600" />
+			<index name="pk_client" unique="PRIMARY_KEY" >
+				<column name="id" />
+			</index>
+			<index name="unq_client" unique="UNIQUE_KEY" >
+				<column name="name" />
+			</index>
+			<index name="unq_client_0" unique="UNIQUE_KEY" >
+				<column name="managed_name" />
+			</index>
+			<index name="unq_client_1" unique="UNIQUE_KEY" >
+				<column name="guid" />
+			</index>
+			<options><![CDATA[ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci]]></options>
+		</table>
+		<table name="client_suffix" prior="client_su" >
+			<column name="id" type="INT" mandatory="y" />
+			<column name="file" type="VARCHAR" length="1" mandatory="y" >
+				<defo><![CDATA['f']]></defo>
+			</column>
+			<column name="directory" type="VARCHAR" length="1" mandatory="y" >
+				<defo><![CDATA['d']]></defo>
+			</column>
+			<index name="pk_client_suffix" unique="PRIMARY_KEY" >
+				<column name="id" />
+			</index>
+			<fk name="fk_client_suffix_client" to_schema="dss_core" to_table="client" >
+				<fk_column name="id" pk="id" />
+			</fk>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+		<table name="directory" prior="direcory" >
+			<column name="parent" prior="parent_id" type="INT" mandatory="y" />
+			<column name="id" type="BIGINT" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="name" type="VARCHAR" length="120" mandatory="y" />
+			<column name="managed_name" prior="managedname" type="VARCHAR" length="140" mandatory="y" />
+			<column name="path" type="VARCHAR" length="140" >
+				<comment><![CDATA[Path is not mandatory. Sometimes if it is not present, we just assume that the data is present in the base directory level. As file ids are created at client level (and not at directory level), not having a path will not create any conflicts. Only file ids will not create issues. However, storing the file itself might create conflicts. So need to be careful with that approach.]]></comment>
+			</column>
+			<column name="created_on" type="DATETIME" mandatory="y" >
+				<defo><![CDATA[current_timestamp()]]></defo>
+			</column>
+			<column name="notes" type="VARCHAR" length="600" />
+			<column name="type" type="INT" mandatory="y" />
+			<column name="isactive" type="BIT" mandatory="y" >
+				<defo><![CDATA[b'1']]></defo>
+			</column>
+			<column name="guid" type="VARCHAR" length="48" mandatory="y" >
+				<defo><![CDATA['uuid()']]></defo>
+			</column>
+			<index name="pk_direcory" unique="PRIMARY_KEY" >
+				<column name="id" />
+			</index>
+			<index name="fk_direcory_client" unique="NORMAL" >
+				<column name="parent" />
+			</index>
+			<index name="unq_directory" unique="UNIQUE_KEY" >
+				<column name="name" />
+			</index>
+			<index name="unq_directory_0" unique="UNIQUE_KEY" >
+				<column name="managed_name" />
+			</index>
+			<index name="idx_directory" unique="NORMAL" >
+				<column name="parent" />
+				<column name="name" />
+			</index>
+			<index name="idx_directory_0" unique="NORMAL" >
+				<column name="parent" />
+				<column name="managed_name" />
+			</index>
+			<index name="idx_directory_1" unique="NORMAL" >
+				<column name="type" />
+			</index>
+			<index name="idx_directory_2" unique="NORMAL" >
+				<column name="parent" />
+				<column name="type" />
+			</index>
+			<index name="unq_directory_1" unique="UNIQUE_KEY" >
+				<column name="guid" />
+			</index>
+			<fk name="fk_direcory_client" to_schema="dss_core" to_table="client" >
+				<fk_column name="parent" pk="id" />
+			</fk>
+			<fk name="fk_directory_tag" to_schema="dss_core" to_table="tag" >
+				<fk_column name="type" pk="id" />
+			</fk>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+		<table name="tag" prior="tags" >
+			<column name="id" type="INT" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="name" type="VARCHAR" length="100" mandatory="y" />
+			<index name="pk_tags" unique="PRIMARY_KEY" >
+				<column name="id" />
+			</index>
+			<index name="unq_tag" unique="UNIQUE_KEY" >
+				<column name="name" />
+			</index>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+	</schema>
+	<layout name="dssclient" id="3ffb53d2-b523-405c-b56e-4864481bd7c9" joined_routing="y" show_relation="cascade" >
+		<entity schema="dss_client" name="parent" color="C1D8EE" x="57" y="57" />
+		<entity schema="dss_client" name="extensions" color="C1D8EE" x="627" y="209" />
+		<entity schema="dss_client" name="file_index" color="C1D8EE" x="247" y="57" />
+		<entity schema="dss_client" name="file_name" color="C1D8EE" x="456" y="57" />
+		<entity schema="dss_client" name="file_version" color="C1D8EE" x="209" y="209" />
+		<entity schema="dss_client" name="file_path" color="C1D8EE" x="57" y="171" />
+		<entity schema="dss_client" name="file_extension" color="C1D8EE" x="437" y="209" />
+	</layout>
+	<layout name="dsscore" id="24f2626d-ccb2-494d-bd2e-79024c8a6535" joined_routing="y" show_relation="columns" >
+		<entity schema="dss_core" name="client" color="3986C1" x="57" y="57" />
+		<entity schema="dss_core" name="client_suffix" color="C1D8EE" x="266" y="133" />
+		<entity schema="dss_core" name="tag" color="C1D8EE" x="285" y="266" />
+		<entity schema="dss_core" name="directory" color="C1D8EE" x="437" y="57" />
+		<script name="directory" id="7fc0b169-ec56-418c-9cdc-0d7e32d8d37a" language="SQL" >
+			<string><![CDATA[CREATE  TABLE dss_core.directory ( 
+	id                   BIGINT    NOT NULL AUTO_INCREMENT  PRIMARY KEY,
+	parent_id            INT    NOT NULL   ,
+	name                 VARCHAR(120)    NOT NULL   ,
+	managedname          VARCHAR(140)    NOT NULL   ,
+	path                 VARCHAR(140)    NOT NULL   ,
+	created_on           DATETIME  DEFAULT current_timestamp()  NOT NULL   ,
+	notes                VARCHAR(600)       
+ ) engine=InnoDB;
+
+CREATE INDEX fk_direcory_client ON dss_core.directory ( parent_id );
+
+ALTER TABLE dss_core.directory ADD CONSTRAINT fk_direcory_client FOREIGN KEY ( parent_id ) REFERENCES dss_core.client( id ) ON DELETE NO ACTION ON UPDATE NO ACTION;
+]]></string>
+		</script>
+	</layout>
+</project>
