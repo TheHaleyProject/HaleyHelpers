@@ -21,9 +21,12 @@ namespace Haley.Services {
             }
             BasePath = BasePath?.ToLower();
         }
-
         public string BasePath { get; }
-
+        public bool EnableIndexing { get; set; } = false; //By default let it be false.
+        public IStorageIndexingService Indexer { get; private set; }
+        public void SetIndexingService(IStorageIndexingService service) {
+            Indexer = service;
+        }
         public string GetBasePath() {
             return BasePath;
         }

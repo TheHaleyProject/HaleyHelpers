@@ -24,9 +24,6 @@
 			<index name="pk_file_extension" unique="PRIMARY_KEY" >
 				<column name="file" />
 			</index>
-			<index name="fk_file_extension_extensions" unique="NORMAL" >
-				<column name="extension" />
-			</index>
 			<fk name="fk_file_extension_file_index" to_schema="dss_client" to_table="file_index" >
 				<fk_column name="file" pk="id" />
 			</fk>
@@ -48,9 +45,6 @@
 			</index>
 			<index name="unq_file_index" unique="UNIQUE_KEY" >
 				<column name="guid" />
-			</index>
-			<index name="fk_file_index_parent" unique="NORMAL" >
-				<column name="parent" />
 			</index>
 			<fk name="fk_file_index_parent" to_schema="dss_client" to_table="directory" >
 				<fk_column name="parent" pk="id" />
@@ -86,7 +80,8 @@
 				<column name="parent" />
 				<column name="path" />
 			</index>
-			<index name="fk_file_path_parent" unique="NORMAL" >
+			<index name="idx_file_path" unique="NORMAL" >
+				<column name="path" />
 				<column name="parent" />
 			</index>
 			<fk name="fk_file_path_parent" to_schema="dss_client" to_table="directory" >
@@ -103,7 +98,7 @@
 			</column>
 			<column name="file" type="BIGINT" mandatory="y" />
 			<column name="uploaded_time" type="DATETIME" mandatory="y" >
-				<defo><![CDATA[current_timestamp()]]></defo>
+				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
 			</column>
 			<column name="size" type="BIGINT" mandatory="y" >
 				<comment><![CDATA[in bytes]]></comment>
@@ -134,7 +129,9 @@
 			</column>
 			<column name="name" type="VARCHAR" length="100" mandatory="y" />
 			<column name="fullname" prior="displayname" type="VARCHAR" length="240" mandatory="y" />
-			<column name="managed_name" prior="managedname" type="VARCHAR" length="140" mandatory="y" />
+			<column name="managed_name" prior="managedname" type="VARCHAR" length="140" mandatory="y" >
+				<comment><![CDATA[managedname is based on the name (not) the fullname]]></comment>
+			</column>
 			<column name="guid" type="VARCHAR" length="48" mandatory="y" >
 				<defo><![CDATA[uuid()]]></defo>
 				<comment><![CDATA[this guid is used to create separate schema for all the clients where in the files will be stored.]]></comment>
@@ -190,13 +187,16 @@
 			<column name="notes" type="VARCHAR" length="600" />
 			<column name="type" type="INT" mandatory="y" />
 			<column name="isactive" type="BIT" mandatory="y" >
-				<defo><![CDATA[1]]></defo>
+				<defo><![CDATA[b'1']]></defo>
 			</column>
 			<column name="guid" type="VARCHAR" length="48" mandatory="y" >
 				<defo><![CDATA['uuid()']]></defo>
 			</column>
 			<index name="pk_direcory" unique="PRIMARY_KEY" >
 				<column name="id" />
+			</index>
+			<index name="fk_direcory_client" unique="NORMAL" >
+				<column name="parent" />
 			</index>
 			<index name="unq_directory" unique="UNIQUE_KEY" >
 				<column name="name" />
