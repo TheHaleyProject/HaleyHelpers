@@ -188,7 +188,7 @@ namespace Haley.Utils
         }
         public static byte[] ComputeSignature(this byte[] stream_array, string key,  HashMethod method = HashMethod.MD5) {
             byte[] computed_hash = null;
-            byte[] keyBytes = GetBytes(key); 
+            byte[] keyBytes = key.GetBytes();
             switch (method) {
                 case HashMethod.MD5:
                 //NOTE: HMACMD5 generates different hash for same input.
@@ -230,13 +230,6 @@ namespace Haley.Utils
             if (encodeBase64) result = Convert.ToBase64String(Encoding.UTF8.GetBytes(result));
 
             return result;
-        }
-
-        private static byte[] GetBytes(string input) {
-            if (input.IsBase64()) {
-                return Convert.FromBase64String(input);
-            }
-            return Encoding.UTF8.GetBytes(input);
         }
     }
 }
