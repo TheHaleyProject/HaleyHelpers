@@ -89,10 +89,27 @@ namespace Haley.Utils
         }
         #endregion
 
-        public static Guid DeterministicGUID(string input)
+        public static Guid CreateGUID(this string input,HashMethod method = HashMethod.MD5)
         {
             var inputbytes = Encoding.UTF8.GetBytes(input);
-            return new Guid(ComputeHash(inputbytes, HashMethod.MD5));
+
+            //Let us only start with either md5 or sha256.
+            if (!(method == HashMethod.MD5 || method == HashMethod.Sha256)) method = HashMethod.MD5;
+            var hash = ComputeHash(inputbytes, method);
+            //Remember MD5 produces 128bits (16 bytes) and sha256 produces 256bits (32bytes). For a guid to work, we need only 16bytes. So, if we decide to use sha256, then we need to trim the resulting hash bytes before processing.
+
+            //RFC4122: As per the RFC4122, all GUID should contain version related information stored in byte 6 and variant information stored in byte 8.
+            //####### BITWISE OPERATIONS BELOW.############ 
+            //STEP 1: CLEAR THE UPPER 4BITS AND THE THEN SET THE LOWER 4BITS
+            hash[6] = (byte)((hash[6] & 0x0F) | 0X40);//0x0F is 00001111 (THE UPPER FOURBITS WILL BE REMOVED BECAUSE OF 0000 AND THE LOWER 4 BITS WILL BE REATINED.  0X40 IS NOTHING BUT 0100 0000 . With this, our resulting information in byte 6 will be in the format of 0100XXXX.
+
+            hash[8] = (byte)((hash[8] & 0X3F) | 0x80); // 0x3F clears upper 2 bits. 0x80 SETS THE top two bits to 10. So, we get the format as 10XXXXXX
+
+            if (method == HashMethod.MD5) return new Guid(hash);
+
+            byte[] guidBytes = new byte[16];
+            Array.Copy(hash, 0, guidBytes, 0, 16);
+            return new Guid(guidBytes);
         }
 
         #region Hash
@@ -109,8 +126,11 @@ namespace Haley.Utils
 
         }
         public static string ComputeHash(this string to_hash, HashMethod method = HashMethod.MD5, bool encodeBase64 = true) {
+            return ConvertToString(ComputeHashBytes(to_hash,method), encodeBase64);
+        }
+        public static byte[] ComputeHashBytes(this string to_hash, HashMethod method = HashMethod.MD5) {
             var _to_hash_bytes = Encoding.UTF8.GetBytes(to_hash);
-            return ConvertToString(ComputeHash(_to_hash_bytes, method), encodeBase64);
+            return ComputeHash(_to_hash_bytes, method);
         }
         public static string ComputeHash(FileInfo file_info, HashMethod method = HashMethod.MD5, bool encodeBase64 = true) {
             try {
