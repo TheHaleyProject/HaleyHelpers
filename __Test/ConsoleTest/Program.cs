@@ -5,6 +5,7 @@ using ConsoleTest;
 using ConsoleTest.Models;
 using Haley.Abstractions;
 using Haley.Models;
+using Haley.Utils;
 
 //new Testing().ConfigTest();
 new Testing().StorageTest();
@@ -134,13 +135,7 @@ class Testing {
     }
     public void StorageTest() {
         try {
-            var strInput = new StorageInput() {
-                Id = 89238923,
-                FileName = "ProjectReferences_HaleyHelpers_Ref.txt",
-                PreferId = false
-            };
-            var service = new FileSystemStorageService();
-            service.Store(strInput);
+           
 
             Console.ReadKey();
 

@@ -10,8 +10,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using System.IO;
+using static Haley.Internal.IndexingConstant;
+using static Haley.Internal.IndexingQueries;
 
-namespace ADJL.Services {
+namespace Haley.Utils {
     public class MariaDBIndexing : IStorageIndexingService {
         string _masterCoreFile = "dsscore.sql";
         string _masterClientFile = "dssclient.sql";
@@ -22,51 +24,35 @@ namespace ADJL.Services {
             if (!isValidated) await Validate();
         }
 
-        public async Task<IFeedback> RegisterClient(string display_name, string password, string path = null) {
-            if (string.IsNullOrWhiteSpace(display_name)) throw new ArgumentNullException("Display Name cannot be empty.");
-            var name = display_name.ToDBName();
+
+        public async Task<IFeedback> RegisterClient(ClientDirectoryInfo info) {
+            if (info == null) throw new ArgumentNullException("Input client directory info cannot be null");
+            info.Assert();
             //We generate the hash_guid ourselves for the client.
             await EnsureValidation();
 
-        }
-
-        public async Task<IFeedback> RegisterClient(string name, string full_name, string password, bool ismanaged=false, string suffix_file = "f", string suffix_dir = "d") {
-            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException("name");
-            await EnsureValidation();
-            var path = ManagedNameUtils.GetBasePath(name, ismanaged);
-            return await UpsertClient(path.name, full_name,password, path.guid, path.path, suffix_file, suffix_dir);
-        }
-
-        public async Task<IFeedback> RegisterClient(string name, string full_name, string password, Guid guid, string path, string suffix_file = "f", string suffix_dir = "d") {
-            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentNullException("name");
-            await EnsureValidation();
             //Check if the client with similar name exists
-            var result = await _agw.Scalar(new AdapterArgs(_key) { Query = CLIENTEXISTS }, (NAME, name));
+            var result = await _agw.Scalar(new AdapterArgs(_key) { Query = CLIENTEXISTS }, (NAME, info.Name));
             if (result == null) {
                 //Create client
                 var thandler = _agw.GetTransactionHandler(_key);
+                info.HashGuid = info.Name.CreateGUID(HashMethod.Sha256).ToString(); //No Context added. Check this one later.
                 using (thandler.Begin()) {
                     //Register client
-                    result = await _agw.Scalar((new AdapterArgs(_key) { Query = ADDCLIENT }).ForTransaction(thandler), (NAME, name), (GUID, guid.ToString()), (PATH, path),(PASSWORD,password));
+                    result = await _agw.Scalar((new AdapterArgs(_key) { Query = ADDCLIENT }).ForTransaction(thandler), (NAME, info.Name),(DNAME,info.DisplayName),  (GUID,info.HashGuid), (PATH, info.Path));
                     if (result != null && result is int clientId) {
                         //Add Info
-                        await _agw.NonQuery((new AdapterArgs(_key) { Query = ADDCLIENTINFO }).ForTransaction(thandler), (ID, clientId), (SUFFIX_FILE, suffix_file), (SUFFIX_DIR, suffix_dir), (FULLNAME, full_name));
-                        //Add Signing Keys
-                        await _agw.NonQuery((new AdapterArgs(_key) { Query = ADDENCRYPTION }).ForTransaction(thandler), (ID, clientId), (SIGNKEY, RandomUtils.GetString(256)), (ENCRYPTKEY, RandomUtils.GetString(256)));
+                        await _agw.NonQuery((new AdapterArgs(_key) { Query = CLIENTKEYS }).ForTransaction(thandler), (ID, clientId), (SIGNKEY, info.SigningKey), (ENCRYPTKEY, info.EncryptKey),(PASSWORD, info.PasswordHash));
                     }
                 }
-            } else {
+            } else if (result is int cid) {
                 //Just update the password.
-                var pwd = await _agw.Scalar(new AdapterArgs(_key) { Query = CLIENTPASS }, (ID, (int)result));
-                if (pwd == null || pwd.ToString() != password) {
-                    //Update the password with new value
-                    await _agw.NonQuery(new AdapterArgs(_key) { Query = CLIENTUPDATEPASS }, (VALUE, password), (ID, (int)result));
-                }
+                await _agw.NonQuery((new AdapterArgs(_key) { Query = CLIENTKEYS }), (ID, cid), (SIGNKEY, info.SigningKey), (ENCRYPTKEY, info.EncryptKey), (PASSWORD, info.PasswordHash));
             }
 
             if (result != null && result is int cliId) return new Feedback(true) { Result = cliId };
-           
-            return new Feedback(false,"Unable to register the client"); 
+
+            return new Feedback(false, "Unable to register the client");
         }
 
         public async Task Validate() {

@@ -216,9 +216,7 @@ We would have anyhow created the guid based on the provided name. If the client 
 			<column name="hash_guid" prior="guid" type="VARCHAR" length="48" mandatory="y" >
 				<comment><![CDATA[same like the client. Guid is created based on the hash of the entered name]]></comment>
 			</column>
-			<column name="path" type="VARCHAR" length="200" >
-				<comment><![CDATA[Path is not mandatory. Sometimes if it is not present, we just assume that the data is present in the base directory level. As file ids are created at client level (and not at directory level), not having a path will not create any conflicts. Only file ids will not create issues. However, storing the file itself might create conflicts. So need to be careful with that approach.]]></comment>
-			</column>
+			<column name="path" type="VARCHAR" length="200" mandatory="y" />
 			<column name="created" prior="created_on" type="DATETIME" mandatory="y" >
 				<defo><![CDATA[current_timestamp()]]></defo>
 			</column>
@@ -312,8 +310,8 @@ ALTER TABLE dss_core.module MODIFY path VARCHAR(200)     COMMENT 'Path is not ma
 	</layout>
 	<layout name="msscore" id="24f2626d-ccb2-494d-bd2e-79024c8a6535" joined_routing="y" show_relation="columns" >
 		<entity schema="dss_core" name="tag" color="C1D8EE" x="247" y="494" />
-		<entity schema="dss_core" name="client" color="3986C1" x="228" y="285" />
 		<entity schema="dss_core" name="module" color="C1D8EE" x="437" y="285" />
+		<entity schema="dss_core" name="client" color="3986C1" x="228" y="285" />
 		<entity schema="dss_core" name="client_keys" color="C1D8EE" x="57" y="285" />
 		<shape x="57" y="57" style="Rectangle" color="FF0000" >
 			<comment><![CDATA[The concept of 'MANAGED' is that it expects all the names to be in either

@@ -1,4 +1,5 @@
 ﻿using Haley.Abstractions;
+using Haley.Enums;
 using Haley.Models;
 using System;
 using System.Collections.Generic;
@@ -18,6 +19,43 @@ namespace Haley.Utils
             //Reason is the user can then directly add .. and go to previous folders and access root path which is not allowed.
             if (input.Contains("..")) throw new ArgumentException("Path Contains invalid segment. Access to parent directory is not allowed.");
             return input;
+        }
+
+        public static (string name, string path, Guid guid) GetBasePath(string name, bool iscontrolled,int split_length = 2, int depth = 0) {
+            if (string.IsNullOrWhiteSpace(name)) return (string.Empty, string.Empty, Guid.Empty);
+            var dbname = name.ToDBName();
+            var hashguid = dbname.CreateGUID(HashMethod.Sha256);
+            string path = dbname;
+
+            if (depth < 0) depth = 0;
+            if (depth > 8) depth = 8;
+
+            if (split_length < 1) split_length = 1;
+            if (split_length > 8) split_length = 8;
+
+            if (iscontrolled) {
+                if (long.TryParse(name, out long res)) {
+                    depth = 0; //For number lets reset depth as 0.
+                    path = res.ToString().Separate(split_length,depth, resultAsPath: true);
+                } else {
+                    if (depth < 1) depth = 4; //We cannot have unlimited depth split for GUID.
+                    path = hashguid.ToString().Replace("-", "").Separate(split_length,depth, addPadding: false, resultAsPath: true);
+                }
+            }
+            return (dbname, path, hashguid);
+        }
+
+        public static string PathFromGUID(this Guid guid, int split_length = 2, int depth = 0) {
+            return PathFromGUID(guid.ToString(),split_length,depth);
+        }
+
+        public static string PathFromGUID(this string guid, int split_length = 2, int depth = 0) {
+            if (depth < 1) depth = 4; //For guid , we cannot have depth at 0
+            if (depth > 8) depth = 8;
+
+            if (split_length < 1) split_length = 1;
+            if (split_length > 8) split_length = 8;
+            return guid.Replace("-", "").Separate(split_length, depth, false, true);
         }
 
         public static bool EnsureDirectory(this string target) {

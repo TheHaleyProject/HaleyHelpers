@@ -1,6 +1,5 @@
 ﻿using Haley.Abstractions;
 using Haley.Enums;
-using Haley.Services;
 using System.IO;
 using System;
 using System.Collections.Generic;
@@ -9,24 +8,61 @@ using System.Text;
 using System.Threading.Tasks;
 using Haley.Models;
 using Haley.Utils;
+using System.CodeDom;
 
 namespace Haley.Services {
-    public class DiskStorageService : IObjectStorageService {
+    public class DiskStorageService : IDiskStorageService {
 
-        public DiskStorageService(string basePath) {
+        public DiskStorageService(string basePath): this(basePath, null) { }
+
+        public DiskStorageService(string basePath, IStorageIndexingService indexer) {
             BasePath = basePath;
             //This is supposedly the directory where all storage goes into.
             if (BasePath == null) {
                 BasePath = AssemblyUtils.GetBaseDirectory(parentFolder: "DataStore");
             }
             BasePath = BasePath?.ToLower();
+            Indexer = indexer; //Set indexer at the beginning.
         }
         public string BasePath { get; }
+        public bool EnableIndexing { get; set; }
+
+        IStorageIndexingService Indexer;
+
         public string GetBasePath() {
             return BasePath;
         }
 
         #region Disk Storage Management 
+
+        public async Task<IFeedback> RegisterClient(string name, bool iscontrolled, string password = null) {
+            //Password will be stored in the .dss.meta file
+            if (string.IsNullOrWhiteSpace(name)) return new Feedback(false, "Name cannot be empty");
+            if (string.IsNullOrWhiteSpace(password)) password = "admin";
+            var cpath = StorageUtils.GetBasePath(name, iscontrolled);
+            var path = Path.Combine(BasePath, cpath.path);
+
+            //Create these folders and then register them.
+            if (!Directory.Exists(path)) {
+                Directory.CreateDirectory(path); //Create the directory.
+            }
+
+            var signing = RandomUtils.GetString(512);
+            var encrypt = RandomUtils.GetString(512);
+
+            Dictionary<string, string> clientKeys = new Dictionary<string, string>();
+            clientKeys.Add("password", password);
+            clientKeys.Add("signing", signing);
+            clientKeys.Add("encrypt", encrypt);
+
+            var keysJson = clientKeys.ToJson();
+            var pwdFile = Path.Combine(path, ".dss.meta");
+            File.WriteAllText(pwdFile,keysJson );   // Over-Write the keys here.
+
+            Indexer.RegisterClient(name)
+
+        }
+
         public async Task<IObjectCreateResponse> Upload(IObjectUploadRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
