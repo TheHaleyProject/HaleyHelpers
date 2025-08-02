@@ -8,7 +8,7 @@ using Haley.Models;
 using Haley.Utils;
 
 //new Testing().ConfigTest();
-new Testing().StorageTest();
+await new Testing().StorageTest();
 
 Console.ReadKey();
 
@@ -133,10 +133,16 @@ class Testing {
         //Console.WriteLine($@"For TS : {current.ToLongDateString()}");
         //Console.WriteLine($@"Hours = {ts}");
     }
-    public void StorageTest() {
+    public async Task StorageTest() {
         try {
-           
-
+            var _agw = new AdapterGateway() { ThrowCRUDExceptions = true }; //Only for testing.
+            var dss = new DiskStorageService().SetIndexer(new MariaDBIndexing(_agw, "mss_db"));
+            await dss.RegisterClient("bcde", true);
+            await dss.RegisterModule("test", true,"bcde",true);
+            await dss.RegisterModule("93456", true,"bcde",true);
+            await dss.RegisterModule("234asd", false,"bcde",true);
+            await dss.RegisterModule("2342234", false,"bcde",true);
+            await dss.RegisterModule("lingam", true,"bcde",true);
             Console.ReadKey();
 
         } catch (Exception ex) {

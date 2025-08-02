@@ -12,10 +12,10 @@
 			</column>
 			<column name="stored_name" type="VARCHAR" length="300" mandatory="y" />
 			<column name="created" prior="created_at" type="TIMESTAMP" mandatory="y" >
-				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
+				<defo><![CDATA[current_timestamp()]]></defo>
 			</column>
 			<column name="updated" prior="updated_at" type="TIMESTAMP" mandatory="y" >
-				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
+				<defo><![CDATA[current_timestamp()]]></defo>
 			</column>
 			<index name="pk_directory_0" unique="PRIMARY_KEY" >
 				<column name="id" />
@@ -115,10 +115,10 @@
 				<comment><![CDATA[Its unique GUID, not generated from the hash]]></comment>
 			</column>
 			<column name="created" prior="created_at" type="TIMESTAMP" mandatory="y" >
-				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
+				<defo><![CDATA[current_timestamp()]]></defo>
 			</column>
 			<column name="modified" prior="modified_on" type="TIMESTAMP" mandatory="y" >
-				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
+				<defo><![CDATA[current_timestamp()]]></defo>
 			</column>
 			<column name="stored_name" type="VARCHAR" length="240" mandatory="y" />
 			<index name="pk_fileindex" unique="PRIMARY_KEY" >
@@ -180,7 +180,8 @@ We would have anyhow created the guid based on the provided name. If the client 
 				<defo><![CDATA[current_timestamp()]]></defo>
 			</column>
 			<column name="modified" type="TIMESTAMP" mandatory="y" >
-				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
+				<defo><![CDATA[current_timestamp()]]></defo>
+				<column_options><![CDATA[ON UPDATE CURRENT_TIMESTAMP]]></column_options>
 			</column>
 			<index name="pk_client" unique="PRIMARY_KEY" >
 				<column name="id" />
@@ -217,14 +218,16 @@ We would have anyhow created the guid based on the provided name. If the client 
 				<comment><![CDATA[same like the client. Guid is created based on the hash of the entered name]]></comment>
 			</column>
 			<column name="path" type="VARCHAR" length="200" mandatory="y" />
-			<column name="created" prior="created_on" type="DATETIME" mandatory="y" >
-				<defo><![CDATA[current_timestamp()]]></defo>
-			</column>
-			<column name="notes" type="VARCHAR" length="600" />
 			<column name="active" prior="is_active" type="BIT" mandatory="y" >
 				<defo><![CDATA[1]]></defo>
 			</column>
-			<column name="type" type="INT" mandatory="y" />
+			<column name="created" prior="created_on" type="DATETIME" mandatory="y" >
+				<defo><![CDATA[current_timestamp()]]></defo>
+			</column>
+			<column name="modified" type="TIMESTAMP" mandatory="y" >
+				<defo><![CDATA[current_timestamp()]]></defo>
+				<column_options><![CDATA[ON UPDATE CURRENT_TIMESTAMP]]></column_options>
+			</column>
 			<index name="pk_direcory" unique="PRIMARY_KEY" >
 				<column name="id" />
 			</index>
@@ -232,37 +235,13 @@ We would have anyhow created the guid based on the provided name. If the client 
 				<column name="parent" />
 				<column name="name" />
 			</index>
-			<index name="idx_directory_1" unique="NORMAL" >
-				<column name="type" />
-			</index>
 			<index name="unq_directory_1" unique="UNIQUE_KEY" >
 				<column name="parent" />
 				<column name="hash_guid" />
 			</index>
-			<index name="idx_directory_2" unique="NORMAL" >
-				<column name="parent" />
-				<column name="type" />
-				<column name="name" />
-			</index>
 			<fk name="fk_direcory_client" to_schema="dss_core" to_table="client" >
 				<fk_column name="parent" pk="id" />
 			</fk>
-			<fk name="fk_directory_tag" to_schema="dss_core" to_table="tag" >
-				<fk_column name="type" pk="id" />
-			</fk>
-			<options><![CDATA[engine=InnoDB]]></options>
-		</table>
-		<table name="tag" prior="tags" >
-			<column name="id" type="INT" mandatory="y" >
-				<identity><![CDATA[AUTO_INCREMENT]]></identity>
-			</column>
-			<column name="name" type="VARCHAR" length="100" mandatory="y" />
-			<index name="pk_tags" unique="PRIMARY_KEY" >
-				<column name="id" />
-			</index>
-			<index name="unq_tag" unique="UNIQUE_KEY" >
-				<column name="name" />
-			</index>
 			<options><![CDATA[engine=InnoDB]]></options>
 		</table>
 	</schema>
@@ -309,10 +288,9 @@ ALTER TABLE dss_core.module MODIFY path VARCHAR(200)     COMMENT 'Path is not ma
 		</script>
 	</layout>
 	<layout name="msscore" id="24f2626d-ccb2-494d-bd2e-79024c8a6535" joined_routing="y" show_relation="columns" >
-		<entity schema="dss_core" name="tag" color="C1D8EE" x="247" y="494" />
-		<entity schema="dss_core" name="module" color="C1D8EE" x="437" y="285" />
-		<entity schema="dss_core" name="client" color="3986C1" x="228" y="285" />
 		<entity schema="dss_core" name="client_keys" color="C1D8EE" x="57" y="285" />
+		<entity schema="dss_core" name="client" color="3986C1" x="228" y="285" />
+		<entity schema="dss_core" name="module" color="C1D8EE" x="437" y="285" />
 		<shape x="57" y="57" style="Rectangle" color="FF0000" >
 			<comment><![CDATA[The concept of 'MANAGED' is that it expects all the names to be in either
 GUID or number format such that the application expects that the name related

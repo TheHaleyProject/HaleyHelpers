@@ -54,28 +54,14 @@ CREATE TABLE IF NOT EXISTS `module` (
   `name` varchar(120) NOT NULL,
   `display_name` varchar(120) NOT NULL,
   `hash_guid` varchar(48) NOT NULL COMMENT 'same like the client. Guid is created based on the hash of the entered name',
-  `path` varchar(200) DEFAULT NULL COMMENT 'Path is not mandatory. Sometimes if it is not present, we just assume that the data is present in the base directory level. As file ids are created at client level (and not at directory level), not having a path will not create any conflicts. Only file ids will not create issues. However, storing the file itself might create conflicts. So need to be careful with that approach.',
+  `path` varchar(200) NOT NULL,
   `created` datetime NOT NULL DEFAULT current_timestamp(),
-  `notes` varchar(600) DEFAULT NULL,
   `active` bit(1) NOT NULL DEFAULT b'1',
-  `type` int(11) NOT NULL,
+  `modified` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `unq_directory_01` (`parent`,`name`),
   UNIQUE KEY `unq_directory_1` (`parent`,`hash_guid`),
-  KEY `idx_directory_1` (`type`),
-  KEY `idx_directory_2` (`parent`,`type`,`name`),
-  CONSTRAINT `fk_direcory_client` FOREIGN KEY (`parent`) REFERENCES `client` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
-  CONSTRAINT `fk_directory_tag` FOREIGN KEY (`type`) REFERENCES `tag` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
-
--- Data exporting was unselected.
-
--- Dumping structure for table dss_core.tag
-CREATE TABLE IF NOT EXISTS `tag` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `unq_tag` (`name`)
+  CONSTRAINT `fk_direcory_client` FOREIGN KEY (`parent`) REFERENCES `client` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- Data exporting was unselected.

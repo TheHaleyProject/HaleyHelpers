@@ -37,6 +37,8 @@ namespace Haley.Utils
                 if (long.TryParse(name, out long res)) {
                     depth = 0; //For number lets reset depth as 0.
                     path = res.ToString().Separate(split_length,depth, resultAsPath: true);
+                    //When we deal with numbers, we end the folder with 'd' to denote it as directory and to conflict with other directories.
+                    path += "d"; //ending with 'd'
                 } else {
                     if (depth < 1) depth = 4; //We cannot have unlimited depth split for GUID.
                     path = hashguid.ToString().Replace("-", "").Separate(split_length,depth, addPadding: false, resultAsPath: true);
@@ -55,7 +57,7 @@ namespace Haley.Utils
 
             if (split_length < 1) split_length = 1;
             if (split_length > 8) split_length = 8;
-            return guid.Replace("-", "").Separate(split_length, depth, false, true);
+            return guid.Replace("-", "").Separate(split_length, depth, addPadding: false, resultAsPath: true);
         }
 
         public static bool EnsureDirectory(this string target) {
@@ -172,7 +174,7 @@ namespace Haley.Utils
                 path = Path.Combine(path, value);
 
                 //If the route is a file, just jump out. Because, if it is a file, may be we are either uploading or fetching the file. the file might even contain it's own sub path as well. 
-                if (route.IsFile) break;
+                if (route.Type == StorageRouteType.File) break;
 
                 //1. a) Dir Creation disallowed b) Dir doesn't exists
                 if (!(route.CreateIfMissing && Directory.Exists(path))) {

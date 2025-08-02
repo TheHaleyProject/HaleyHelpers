@@ -25,13 +25,24 @@ namespace Haley.Internal {
         public static string ENCRYPTKEY = $@"@{nameof(ENCRYPTKEY)}";
         public static string VALUE = $@"@{nameof(VALUE)}";
         public static string PASSWORD = $@"@{nameof(PASSWORD)}";
+        public static string DATETIME = $@"@{nameof(DATETIME)}";
+        public static string PARENT = $@"@{nameof(PARENT)}";
 
     }
 
     internal class IndexingQueries {
-        public static string CLIENTKEYS = $@"insert into client_keys (client,signing,encrypt,password) values ({ID},{SIGNKEY},{ENCRYPTKEY},{PASSWORD}) ON DUPLICATE client UPDATE signing =  VALUES(signing), encrypt = VALUES(encrypt), password = VALUES(password);";
-        public static string CLIENTKEYS_GET = $@"select * from client_keys as c where c.client = {ID} LIMIT 1;";
-        public static string CLIENTEXISTS = $@"select 1 from client as c where c.name = {NAME} LIMIT 1;";
-        public static string ADDCLIENT = $@"insert into client (name,display_name, hash_guid,path) values ({NAME},{DNAME},{GUID},{PATH}) returning id;";
+        public class CLIENT {
+            public static string EXISTS = $@"select c.id from client as c where c.name = {NAME} LIMIT 1;";
+            public static string UPSERTKEYS = $@"insert into client_keys (client,signing,encrypt,password) values ({ID},{SIGNKEY},{ENCRYPTKEY},{PASSWORD}) ON DUPLICATE KEY UPDATE signing =  VALUES(signing), encrypt = VALUES(encrypt), password = VALUES(password);";
+            public static string UPSERT = $@"insert into client (name,display_name, hash_guid,path) values ({NAME},{DNAME},{GUID},{PATH}) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), path = VALUES(path);";
+            public static string UPDATE = $@"update client set display_name = {DNAME}, path = {PATH} where id = {ID};";
+            public static string GETKEYS = $@"select * from client_keys as c where c.client = {ID} LIMIT 1;";
+        }
+        
+        public class MODULE {
+            public static string EXISTS = $@"select m.id from module as m where m.name = {NAME} and m.parent = {PARENT} LIMIT 1;";
+            public static string UPSERT = $@"insert into module (parent,name, display_name,hash_guid,path) values ({PARENT}, {NAME},{DNAME},{GUID},{PATH}) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), path = VALUES(path);";
+            public static string UPDATE = $@"update module set display_name = {DNAME}, path = {PATH} where id = {ID};";
+        }
     }
 }

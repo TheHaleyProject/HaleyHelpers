@@ -9,13 +9,16 @@ using System.Threading.Tasks;
 using Haley.Models;
 using Haley.Utils;
 using System.CodeDom;
+using System.Security.Cryptography;
+using Microsoft.Identity.Client;
+using static Haley.Utils.ObjectValidation;
 
 namespace Haley.Services {
     public class DiskStorageService : IDiskStorageService {
 
+        public DiskStorageService():this(null, null) { }
         public DiskStorageService(string basePath): this(basePath, null) { }
-
-        public DiskStorageService(string basePath, IStorageIndexingService indexer) {
+        public DiskStorageService(string basePath, IDiskStorageIndexing indexer) {
             BasePath = basePath;
             //This is supposedly the directory where all storage goes into.
             if (BasePath == null) {
@@ -23,46 +26,111 @@ namespace Haley.Services {
             }
             BasePath = BasePath?.ToLower();
             Indexer = indexer; //Set indexer at the beginning.
+            if (Indexer != null) EnableIndexing = true;
+            //If a client is not registered, do we need to register the default client?? and a default module??
+            
         }
         public string BasePath { get; }
         public bool EnableIndexing { get; set; }
-
-        IStorageIndexingService Indexer;
+        public bool WriteMode { get; set; }
+        IDiskStorageIndexing Indexer;
 
         public string GetBasePath() {
             return BasePath;
         }
 
-        #region Disk Storage Management 
+        public IDiskStorageService SetIndexer(IDiskStorageIndexing service) {
+            Indexer = service;
+            if (Indexer != null) EnableIndexing = true;
+            return this;
+        }
 
+        #region Client & Module Management 
         public async Task<IFeedback> RegisterClient(string name, bool iscontrolled, string password = null) {
             //Password will be stored in the .dss.meta file
             if (string.IsNullOrWhiteSpace(name)) return new Feedback(false, "Name cannot be empty");
+            if (name.Contains("..") || name.Contains(@"\") || name.Contains(@"/")) return new Feedback(false, "Client Name contains invalid characters");
             if (string.IsNullOrWhiteSpace(password)) password = "admin";
             var cpath = StorageUtils.GetBasePath(name, iscontrolled);
             var path = Path.Combine(BasePath, cpath.path);
 
+            //Thins is we are not allowing any path to be provided by user. Only the name is allowed.
+
             //Create these folders and then register them.
-            if (!Directory.Exists(path)) {
-                Directory.CreateDirectory(path); //Create the directory.
+            if (!Directory.Exists(path) && WriteMode) {
+                Directory.CreateDirectory(path); //Create the directory only if write mode is enabled or else, we just try to store the information in cache.
             }
 
             var signing = RandomUtils.GetString(512);
             var encrypt = RandomUtils.GetString(512);
+            var pwdHash = HashUtils.ComputeHash(password, HashMethod.Sha256);
+            var result = new Feedback(true, $@"Client {name} is registered");
 
-            Dictionary<string, string> clientKeys = new Dictionary<string, string>();
-            clientKeys.Add("password", password);
-            clientKeys.Add("signing", signing);
-            clientKeys.Add("encrypt", encrypt);
+            if (WriteMode) {
+                Dictionary<string, string> clientMeta = new Dictionary<string, string>();
+                clientMeta.Add("name", name); //Client name
+                clientMeta.Add("guid", cpath.guid.ToString()); // Hash guid
+                clientMeta.Add("password", pwdHash);
+                clientMeta.Add("signing", signing);
+                clientMeta.Add("encrypt", encrypt);
 
-            var keysJson = clientKeys.ToJson();
-            var pwdFile = Path.Combine(path, ".dss.meta");
-            File.WriteAllText(pwdFile,keysJson );   // Over-Write the keys here.
+                var keysJson = clientMeta.ToJson();
+                var metaFile = Path.Combine(path, ".client.dss.meta");
+                File.WriteAllText(metaFile, keysJson);   // Over-Write the keys here.
+            }
 
-            Indexer.RegisterClient(name)
+            if (!Directory.Exists(path)) result.SetStatus(false).SetMessage("Directory was not created. Check if WriteMode is ON Or make sure proper access is availalbe");
+
+            if (!result.Status || Indexer == null || !EnableIndexing) return result;
+            var idxResult = await Indexer.RegisterClient(new ClientDirectoryInfo(name) { EncryptKey = encrypt, SigningKey = signing, Name = cpath.name, Path = cpath.path, PasswordHash = pwdHash, HashGuid = cpath.guid.ToString() });
+            result.Result = idxResult.Result;
+            return result;
+        }
+        public Task<IFeedback> RegisterModule(string name, bool iscontrolled, string client_name, bool isclient_controlled) {
+            //AssertValues(true, (client_name,"client name"), (name,"module name")); //uses reflection and might carry performance penalty
+            client_name.AssertValue(true, "Client Name");
+            name.AssertValue(true, "Module Name");
+
+            var cpath = StorageUtils.GetBasePath(client_name, isclient_controlled);
+            return RegisterModule(name, iscontrolled,cpath.name, Path.Combine(BasePath, cpath.path));
+        }
+        async Task<IFeedback> RegisterModule(string name, bool iscontrolled, string client_name, string client_path) {
+            client_path.AssertValue(true, "Client Path");
+            client_name.AssertValue(true, "Client Name");
+            if (!Directory.Exists(client_path)) return new Feedback(false, $@"Directory not found for the client {client_name}");
+            if (client_path.Contains("..")) return new Feedback(false, "Client Path contains invalid characters");
+            if (name.Contains("..") || name.Contains(@"\") || name.Contains(@"/")) return new Feedback(false, "Module Name contains invalid characters");
+            var cpath = StorageUtils.GetBasePath(name, iscontrolled);
+            var path = Path.Combine(client_path, cpath.path); //Including Client Path
+
+            //Create these folders and then register them.
+            if (!Directory.Exists(path) && WriteMode) {
+                Directory.CreateDirectory(path); //Create the directory.
+            }
+
+            if (WriteMode) {
+                Dictionary<string, string> moduleMeta = new Dictionary<string, string>();
+                moduleMeta.Add("name", name); //Client name
+                moduleMeta.Add("guid", cpath.guid.ToString()); // Hash guid
+                moduleMeta.Add("client", client_name);
+
+                var keysJson = moduleMeta.ToJson();
+                var metaFile = Path.Combine(path, ".module.dss.meta");
+                File.WriteAllText(metaFile, keysJson);
+            }
+
+            var result = new Feedback(true, $@"Module {name} is registered");
+            if (!Directory.Exists(path)) result.SetStatus(false).SetMessage("Directory is not created. Please ensure if the WriteMode is turned ON or proper access is availalbe.");
+
+            if (Indexer == null || !EnableIndexing) return result;
+            var idxResult = await Indexer.RegisterModule(new ModuleDirectoryInfo(client_name, name) { Name = cpath.name, Path = cpath.path, HashGuid = cpath.guid.ToString() });
+            result.Result = idxResult.Result;
+            return result;
 
         }
+        #endregion
 
+        #region Disk Storage Management 
         public async Task<IObjectCreateResponse> Upload(IObjectUploadRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
@@ -164,7 +232,7 @@ namespace Haley.Services {
                 feedback.Message = "Unable to generate path from provided inputs.";
                 return feedback;
             }
-            bool isFile = input.StorageRoutes?.Last().IsFile ?? false; //Why any of the flag?
+            bool isFile = input.StorageRoutes?.Last().Type == StorageRouteType.File; //Why any of the flag?
             //If last storageroute has a IsFile flag, then it means, we are trying to figure out a file existence.
             if (isFile) {
                 feedback.Status = File.Exists(path);
@@ -302,6 +370,9 @@ namespace Haley.Services {
         }
 
         public Task<IFeedback> AuthorizeClient(object clientInfo, object clientSecret) {
+            //Take may be we take the password? no?
+            //We can take the password for this client, and compare with the information available in the DB or in the folder. 
+            //Whenever indexing is enabled, may be we need to take all the availalbe clients and fetch their password file and update the DB. Because during the time the indexing was down, may be system generated it's own files and stored it.
             IFeedback result = new Feedback();
             result.Status = true;
             result.Message = "No default implementation available. All requests authorized.";
