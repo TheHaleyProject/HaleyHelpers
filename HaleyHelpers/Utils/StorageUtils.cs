@@ -60,27 +60,6 @@ namespace Haley.Utils
             return guid.Replace("-", "").Separate(split_length, depth, addPadding: false, resultAsPath: true);
         }
 
-        public static bool EnsureDirectory(this string target) {
-            try {
-                if (string.IsNullOrWhiteSpace(target)) return false;
-                if (Directory.Exists(target)) return true;
-                bool createFlag = true;
-                int tryCount = 0;
-                while (createFlag) {
-                    try {
-                        Directory.CreateDirectory(target);
-                        if (Directory.Exists(target)) break;
-                    } catch (Exception) {
-                        if (tryCount > 3) break;
-                    }
-                    tryCount++;
-                }
-                return Directory.Exists(target);
-            } catch (Exception) {
-                throw;
-            }
-        }
-
         public static async Task<bool> TryReplaceFileAsync(this Stream sourceStream, string path, int bufferSize, int maxRetries = 5, int delayMilliseconds = 500) {
             for (int attempt = 0; attempt < maxRetries; attempt++) {
                 try {
@@ -122,6 +101,21 @@ namespace Haley.Utils
             return false;
         }
 
+        public static async Task<bool> TryCreateDirectory(this string path, int maxRetries = 5, int delayMs = 500) {
+            if (Directory.Exists(path)) return true;
+
+            for (int attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    Directory.CreateDirectory(path); 
+                    return true;
+                } catch (IOException) {
+                    await Task.Delay(delayMs);
+                }
+            }
+
+            return false;
+        }
+
         public static async Task<bool> TryDeleteFile(this string path, int maxRetries = 5, int delayMilliseconds = 500) {
             for (int attempt = 0; attempt < maxRetries; attempt++) {
                 try {
@@ -140,25 +134,39 @@ namespace Haley.Utils
         public static string BuildStoragePath(this IObjectReadRequest input, string basePath, bool allowRootAccess = false, bool readonlyMode = false) {
             if (input == null || !(input is ObjectReadRequest req)) throw new ArgumentNullException($@"{nameof(IObjectReadRequest)} cannot be null. It has to be of type {nameof(ObjectReadRequest)}");
 
-            req.ObjectLocation = input.StorageRoutes?.BuildStoragePath(basePath, allowRootAccess, readonlyMode);
+            if (basePath.Contains("..")) throw new ArgumentOutOfRangeException("The base path contains invalid segments. Parent directory access is not allowed. Please fix");
+
+            if (string.IsNullOrWhiteSpace(req.TargetPath)) {
+                req.TargetPath = input.StorageRoutes?.BuildStoragePath(basePath, allowRootAccess, readonlyMode);
+            } else {
+                req.TargetPath = Path.Combine(basePath, req.TargetPath);
+            }
+
             //What if, the user provided no value and we end up with only the Basepath.
-            if (string.IsNullOrWhiteSpace(req.ObjectLocation)) throw new ArgumentNullException($@"Unable to generate a full object path for the request");
+            if (string.IsNullOrWhiteSpace(req.TargetPath)) throw new ArgumentNullException($@"Unable to generate a full object path for the request");
 
-            //If it doesn't start with base path, we replace as well
-            if (!req.ObjectLocation.StartsWith(basePath)) throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
+            if (req.TargetPath.Contains("..")) throw new ArgumentOutOfRangeException("The generated path contains invalid segments. Parent directory access is not allowed. Please fix");
 
-            if (req.ObjectLocation.Contains("..")) throw new ArgumentOutOfRangeException("The generated path contains invalid segments. Parent directory access is not allowed. Please fix");
+            return req.TargetPath;
+        }
 
-            return req.ObjectLocation;
+        static string JoinBasePaths(List<string> paths) {
+            if (paths == null || paths.Count < 1) {
+                throw new ArgumentNullException("Base paths not found. Please provide a valid base path to proceed.");
+            }
+           return Path.Combine(paths.ToArray()); //Will it be in proper order??
         }
 
         public static string BuildStoragePath(this List<StorageRoute> routes, string basePath, bool allow_root_access, bool readonlyMode) {
-            string path = basePath; //Base path cannot be null. it is mandatory for disk storage.
+
+            string path = basePath;  
+            if (!Directory.Exists(path)) throw new ArgumentException("BasePath Directory doesn't exists.");
+
             //Pull the lastone out.
             if (routes == null && routes.Count < 1) return path; //Direclty create inside the basepath (applicable in few cases);
                                                                  //If one of the path is trying to make a root access, should we allow or deny?
 
-            for (int i = 0; i < routes.Count; i++) { //the -2 is to ensure we ignore the last part.
+            for (int i = 0; i < routes.Count; i++) { 
                 var route = routes[i];
                 //If we are at the end, ignore
                 string value = route.Path;
@@ -174,11 +182,12 @@ namespace Haley.Utils
                 path = Path.Combine(path, value);
 
                 //If the route is a file, just jump out. Because, if it is a file, may be we are either uploading or fetching the file. the file might even contain it's own sub path as well. 
-                if (route.Type == StorageRouteType.File) break;
+                if (route.IsFile) break;
 
-                //1. a) Dir Creation disallowed b) Dir doesn't exists
-                if (!(route.CreateIfMissing && Directory.Exists(path))) {
+                //1. a) Dir Creation disallowed b) Dir doesn't exists c) The route is not of type Client or Module. 
+                if (!Directory.Exists(path) && !route.CreateIfMissing) {
                     //Whether it is a file or a directory, if user doesn't have access to create it, throw exception.
+                    //We cannot allow to create Client & Module paths.
                     string errMsg = $@"Directory doesn't exists : {route.Key ?? route.Path}";
 
                     //2.1 ) Are we in the middle, trying to ensure some directory exists?
@@ -188,9 +197,10 @@ namespace Haley.Utils
 
                 //3. Are we trying to create a directory as our main goal?
                 if (isEndPart) break;
-
-                if (!(path?.EnsureDirectory() ?? false)) throw new ArgumentException($@"Unable to create the directory : {route.Key ?? route.Path}");
+                if (!(path?.TryCreateDirectory().Result ?? false)) throw new ArgumentException($@"Unable to create the directory : {route.Key ?? route.Path}");
             }
+
+            if (path.StartsWith(basePath)) throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
             return path;
         }
     }

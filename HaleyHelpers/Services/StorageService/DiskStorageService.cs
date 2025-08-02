@@ -130,6 +130,31 @@ namespace Haley.Services {
         }
         #endregion
 
+        string FetchBasePath(IObjectReadRequest request) {
+            List<string> paths = new List<string>();
+            paths.Add(BasePath);
+
+            if (request.Client != null) {
+                var info = Indexer.GetClientInfo(request.Client.Name);
+                if (info != null) {
+                    paths.Add(info.Path);
+                } else if (!string.IsNullOrWhiteSpace(request.Client.Name)) {
+                    paths.Add(StorageUtils.GetBasePath(request.Client.Name, request.Client.IsControlled).path);
+                }
+            }
+
+            if (request.Module != null) {
+                var info = Indexer.GetModuleInfo(request.Module.Name);
+                if (info != null) {
+                    paths.Add(info.Path);
+                } else if (!string.IsNullOrWhiteSpace(request.Module.Name)) {
+                    paths.Add(StorageUtils.GetBasePath(request.Module.Name, request.Module.IsControlled).path);
+                }
+            }
+            if (paths.Count > 0) return Path.Combine(paths.ToArray());
+            return BasePath;
+        }
+
         #region Disk Storage Management 
         public async Task<IObjectCreateResponse> Upload(IObjectUploadRequest input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
@@ -137,8 +162,8 @@ namespace Haley.Services {
                 RawName = input.RawName
             };
             try {
-                var path = input?.BuildStoragePath(BasePath); //This will also ensure we are not trying to delete something 
-                if (string.IsNullOrWhiteSpace(path)) {
+                input?.BuildStoragePath(FetchBasePath(input)); //This will also ensure we are not trying to delete something 
+                if (string.IsNullOrWhiteSpace(input.TargetPath)) {
                     result.Message = "Unable to generate the final storage path. Please check inputs.";
                     return result;
                 }
@@ -148,14 +173,14 @@ namespace Haley.Services {
                 if (input.FileStream == null) throw new ArgumentException($@"File stream is null. Nothing to save.");
                 input.FileStream.Position = 0; //Precaution
 
-                if (!FilePreProcess(result, path, input.ResolveMode)) return result;
+                if (!FilePreProcess(result, input.TargetPath, input.ResolveMode)) return result;
 
                 //Either file doesn't exists.. or exists and replace
 
                 if (!result.ObjectExists || input.ResolveMode == ObjectExistsResolveMode.Replace) {
                     //TODO : DEFERRED REPLACEMENT
                     //If the file is currently in use, try for 5 times and then replace. May be easy option would be to store in temporary place and then update a database that a temporary file is created and then later, with some background process check the database and try to replace. This way we dont' have to block the api call or wait for completion.
-                    await input.FileStream?.TryReplaceFileAsync(path, input.BufferSize);
+                    await input.FileStream?.TryReplaceFileAsync(input.TargetPath, input.BufferSize);
                 }
 
                 if (!result.ObjectExists) result.Message = "Uploaded."; //For skip also, we will return true (but object will exists)
@@ -171,7 +196,7 @@ namespace Haley.Services {
 
         public Task<IFileStreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true) {
             IFileStreamResponse result = new FileStreamResponse() { Status = false, Stream = Stream.Null };
-            var path = input?.BuildStoragePath(BasePath); //This will also ensure we are not trying to delete something 
+            var path = input?.BuildStoragePath(FetchBasePath(input)); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(result);
 
             if (!File.Exists(path) && auto_search_extension) {
@@ -209,7 +234,7 @@ namespace Haley.Services {
 
         public async Task<IFeedback> Delete(IObjectReadRequest input) {
             IFeedback feedback = new Feedback() { Status = false };
-            var path = input?.BuildStoragePath(BasePath, readonlyMode:true); //This will also ensure we are not trying to create something 
+            var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to create something 
             if (string.IsNullOrWhiteSpace(path)) {
                 feedback.Message = "Unable to generate path from provided inputs.";
                 return feedback;
@@ -227,12 +252,12 @@ namespace Haley.Services {
 
         public IFeedback Exists(IObjectReadRequest input) {
             var feedback = new Feedback() { Status = false };
-            var path = input?.BuildStoragePath(BasePath, readonlyMode:true); //This will also ensure we are not trying to delete something 
+            var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
                 feedback.Message = "Unable to generate path from provided inputs.";
                 return feedback;
             }
-            bool isFile = input.StorageRoutes?.Last().Type == StorageRouteType.File; //Why any of the flag?
+            bool isFile = input.StorageRoutes?.Last().IsFile ?? false; //Why any of the flag?
             //If last storageroute has a IsFile flag, then it means, we are trying to figure out a file existence.
             if (isFile) {
                 feedback.Status = File.Exists(path);
@@ -244,7 +269,7 @@ namespace Haley.Services {
         }
 
         public long GetSize(IObjectReadRequest input) {
-            var path = input?.BuildStoragePath(BasePath); //This will also ensure we are not trying to delete something 
+            var path = input?.BuildStoragePath(FetchBasePath(input)); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return 0;
             return new FileInfo(path).Length;
         }
@@ -252,7 +277,7 @@ namespace Haley.Services {
         public Task<IDirectoryInfoResponse> GetDirectoryInfo(IObjectReadRequest input) {
             IDirectoryInfoResponse result = new DirectoryInfoResponse() { Status = false};
 
-            var path = input?.BuildStoragePath(BasePath,readonlyMode:true); //This will also ensure we are not trying to delete something 
+            var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
                 result.Message = "Unable to generate path.";
                 return Task.FromResult(result);
@@ -271,26 +296,26 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public Task<IObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname) {
+        public async Task<IObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname) {
             IObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
                 RawName = rawname
             };
             try {
-                var path = input?.BuildStoragePath(BasePath);  //This will also ensure we are not trying to delete something 
+                var path = input?.BuildStoragePath(FetchBasePath(input));  //This will also ensure we are not trying to delete something 
                 if (string.IsNullOrWhiteSpace(path)) {
                     result.Message = $@"Unable to generate the path. Please check inputs.";
-                    return Task.FromResult(result);
+                    return result;
                 }
 
                 if (Directory.Exists(path)) {
                     result.Status = true;
                     result.Message = $@"Directory already exists.";
-                    return Task.FromResult(result);
+                    return result;
                 }
-                if (!(path?.EnsureDirectory() ?? false)) {
+                if (!(await path?.TryCreateDirectory())) {
                     result.Message = $@"Unable to create the directory. Please check if it is valid.";
-                    return Task.FromResult(result);
+                    return result;
                 }
 
                 result.Status = true;
@@ -299,12 +324,12 @@ namespace Haley.Services {
                 result.Status = false;
                 result.Message = ex.Message;
             }
-            return Task.FromResult(result);
+            return result;
         }
 
         public async  Task<IFeedback> DeleteDirectory(IObjectReadRequest input, bool recursive) {
             IFeedback feedback = new Feedback() { Status = false };
-            var path = input?.BuildStoragePath(BasePath, readonlyMode: true);
+            var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode: true);
             if (string.IsNullOrWhiteSpace(path)) {
                 feedback.Message = "Unable to generate path from provided inputs.";
                 return feedback;
@@ -340,7 +365,7 @@ namespace Haley.Services {
             var targetDir = Path.GetDirectoryName(filePath); //Get only the directory.
 
             //Should we even try to generate the directory first???
-            if (!(targetDir?.EnsureDirectory() ?? false)) {
+            if (!(targetDir?.TryCreateDirectory().Result ?? false)) {
                 result.Message = $@"Unable to ensure storage directory. Please check if it is valid. {targetDir}";
                 return false;
             }

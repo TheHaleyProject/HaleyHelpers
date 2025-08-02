@@ -3,6 +3,7 @@ using Haley.Enums;
 using Haley.Models;
 using Haley.Utils;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -25,7 +26,9 @@ namespace Haley.Utils {
             if (!isValidated) await Validate();
         }
 
-
+        ConcurrentDictionary<string, ModuleDirectoryInfo> _idxModules = new ConcurrentDictionary<string, ModuleDirectoryInfo>();
+        ConcurrentDictionary<string, ClientDirectoryInfo> _idxClients = new ConcurrentDictionary<string, ClientDirectoryInfo>();
+       
         public async Task<IFeedback> RegisterClient(ClientDirectoryInfo info) {
             if (info == null) throw new ArgumentNullException("Input client directory info cannot be null");
             info.Assert();
@@ -57,10 +60,13 @@ namespace Haley.Utils {
                 }
             }
 
-            if (result != null && result is int resultId) return new Feedback(true) { Result = resultId};
+            if (result != null && result is int resultId) {
+                //Every time a client is sucessfully done. We validate if it is present or not.
+                await ValidateClient(info.Name);
+                return new Feedback(true) { Result = resultId };
+            }
             return new Feedback(false, "Unable to index the client");
         }
-
         public async Task<IFeedback> RegisterModule(ModuleDirectoryInfo info) {
             if (info == null) throw new ArgumentNullException("Input Module directory info cannot be null");
             info.Assert();
@@ -81,11 +87,19 @@ namespace Haley.Utils {
 
             mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
 
-            if (mexists != null && mexists is long moduleId) return new Feedback(true,"Module Indexed.") {Result = moduleId};
+            if (mexists != null && mexists is long moduleId) {
+                //Now add this information to the indexed modules
+                if (!_idxModules.ContainsKey(info.Name)) {
+                    //Either not present.. or present but empty.
+                    _idxModules.TryAdd(info.Name, info);
+                } else if (_idxModules[info.Name] == null) {
+                    _idxModules.TryUpdate(info.Name, info, null);
+                }
+                return new Feedback(true, "Module Indexed.") { Result = moduleId };
+            }
 
             return new Feedback(false, "Unable to index the module");
         }
-
         public async Task Validate() {
             try {
                 //If the service or the db doesn't exist, we throw exception or else the system would assume that nothing is wrong. If they wish , they can still turn of the indexing.
@@ -105,6 +119,45 @@ namespace Haley.Utils {
                 throw ex;
             }
            
+        }
+        async Task ValidateClient(ClientDirectoryInfo info) {
+            if (_idxClients.ContainsKey(info.Name) && _idxClients[info.Name] != null) return; //WHAT IF KEY IS PRESENT BUT IN ACTUAL THE DATABASE WAS DELETED MANUALLY? SHOULDN'T WE CHECK THAT? OR DIRECTLY THROW EXCEPTION AT RUN TIME? OR THAT THE DETAILS ARE NOT UPDATED?
+            //if not, we need to ensure that this client schema is created and then add it internally.
+            if (string.IsNullOrWhiteSpace(info.HashGuid)) info.HashGuid = info.Name.CreateGUID(HashMethod.Sha256).ToString();
+            if (string.IsNullOrWhiteSpace(info.DatabaseName)) info.DatabaseName = $@"dss_{info.HashGuid.ToString().Replace("-", "")}";
+            var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), "Resources", _masterClientFile);
+            if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql for client file is not found. Please check : {_masterClientFile}");
+            //if the file exists, then run this file against the adapter gateway but ignore the db name.
+            var content = File.ReadAllText(sqlFile);
+            //We know that the file itself contains "dss_core" as the schema name. Replace that with new one.
+            content = content.Replace("dss_client", info.DatabaseName);
+            //?? Should we run everything in one go or run as separate statements???
+            await _agw.NonQuery(new AdapterArgs(_key) { ExcludeDBInConString = true, Query = content });
+            if (_idxClients.ContainsKey(info.Name)) {
+                _idxClients.TryUpdate(info.Name, info, null); //Gives the schema name
+            } else {
+                _idxClients.TryAdd(info.Name, info);
+            }
+        }
+        async Task ValidateClient(string name) {
+            name.AssertValue(true, "Client Name");
+            var clientName = name.ToDBName();
+            
+            await ValidateClient(new ClientDirectoryInfo(name));
+        }
+
+        public ClientDirectoryInfo GetClientInfo(string name) {
+            if(!name.AssertValue(false))return null;
+            var dbname = name.ToDBName();
+            if (_idxClients.ContainsKey(dbname)) return _idxClients[dbname];
+            return null;
+        }
+
+        public ModuleDirectoryInfo GetModuleInfo(string name) {
+            if (!name.AssertValue(false)) return null;
+            var dbname = name.ToDBName();
+            if (_idxModules.ContainsKey(dbname)) return _idxModules[dbname];
+            return null;
         }
 
         public MariaDBIndexing(IAdapterGateway agw, string key) {
