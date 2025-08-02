@@ -62,7 +62,7 @@ namespace Haley.Utils {
 
             if (result != null && result is int resultId) {
                 //Every time a client is sucessfully done. We validate if it is present or not.
-                await ValidateClient(info.Name);
+                await ValidateClient(info);
                 return new Feedback(true) { Result = resultId };
             }
             return new Feedback(false, "Unable to index the client");
@@ -143,7 +143,7 @@ namespace Haley.Utils {
             name.AssertValue(true, "Client Name");
             var clientName = name.ToDBName();
             
-            await ValidateClient(new ClientDirectoryInfo(name));
+            await ValidateClient(new ClientDirectoryInfo(name) { Name = clientName});
         }
 
         public ClientDirectoryInfo GetClientInfo(string name) {

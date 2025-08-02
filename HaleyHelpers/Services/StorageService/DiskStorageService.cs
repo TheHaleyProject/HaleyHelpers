@@ -15,20 +15,25 @@ using static Haley.Utils.ObjectValidation;
 
 namespace Haley.Services {
     public class DiskStorageService : IDiskStorageService {
-
-        public DiskStorageService():this(null, null) { }
-        public DiskStorageService(string basePath): this(basePath, null) { }
-        public DiskStorageService(string basePath, IDiskStorageIndexing indexer) {
+        bool _isInitialized = false;
+        public DiskStorageService(bool write_mode = true):this(null, null,write_mode) { }
+        public DiskStorageService(string basePath, bool write_mode = true) : this(basePath, null,write_mode) { }
+        public DiskStorageService(string basePath, IDiskStorageIndexing indexer, bool write_mode) {
             BasePath = basePath;
+            WriteMode = write_mode;
             //This is supposedly the directory where all storage goes into.
             if (BasePath == null) {
                 BasePath = AssemblyUtils.GetBaseDirectory(parentFolder: "DataStore");
             }
             BasePath = BasePath?.ToLower();
-            Indexer = indexer; //Set indexer at the beginning.
-            if (Indexer != null) EnableIndexing = true;
+            SetIndexer(indexer);
             //If a client is not registered, do we need to register the default client?? and a default module??
-            
+        }
+        async Task Initialize(bool force = false) {
+            if (_isInitialized && !force) return;
+            await RegisterClient(ObjectReadRequest.DEFAULTNAME, false);
+            await RegisterModule(ObjectReadRequest.DEFAULTNAME, false, ObjectReadRequest.DEFAULTNAME, false);
+            _isInitialized = true;
         }
         public string BasePath { get; }
         public bool EnableIndexing { get; set; }
@@ -39,9 +44,17 @@ namespace Haley.Services {
             return BasePath;
         }
 
+        public DiskStorageService SetWriteMode(bool mode) {
+            WriteMode = mode;
+            return this;
+        }
+
         public IDiskStorageService SetIndexer(IDiskStorageIndexing service) {
             Indexer = service;
-            if (Indexer != null) EnableIndexing = true;
+            if (Indexer != null) {
+                EnableIndexing = true;
+                Initialize(true).Wait(); //Once we set the indexer we also try to initialize.
+            }
             return this;
         }
 
@@ -82,7 +95,7 @@ namespace Haley.Services {
             if (!Directory.Exists(path)) result.SetStatus(false).SetMessage("Directory was not created. Check if WriteMode is ON Or make sure proper access is availalbe");
 
             if (!result.Status || Indexer == null || !EnableIndexing) return result;
-            var idxResult = await Indexer.RegisterClient(new ClientDirectoryInfo(name) { EncryptKey = encrypt, SigningKey = signing, Name = cpath.name, Path = cpath.path, PasswordHash = pwdHash, HashGuid = cpath.guid.ToString() });
+            var idxResult = await Indexer.RegisterClient(new ClientDirectoryInfo(name) { EncryptKey = encrypt, SigningKey = signing, Name = cpath.name, Path = cpath.path, PasswordHash = pwdHash, HashGuid = cpath.guid.ToString(), IsControlled = iscontrolled });
             result.Result = idxResult.Result;
             return result;
         }
@@ -123,7 +136,7 @@ namespace Haley.Services {
             if (!Directory.Exists(path)) result.SetStatus(false).SetMessage("Directory is not created. Please ensure if the WriteMode is turned ON or proper access is availalbe.");
 
             if (Indexer == null || !EnableIndexing) return result;
-            var idxResult = await Indexer.RegisterModule(new ModuleDirectoryInfo(client_name, name) { Name = cpath.name, Path = cpath.path, HashGuid = cpath.guid.ToString() });
+            var idxResult = await Indexer.RegisterModule(new ModuleDirectoryInfo(client_name, name) { Name = cpath.name, Path = cpath.path, HashGuid = cpath.guid.ToString(), IsControlled = iscontrolled });
             result.Result = idxResult.Result;
             return result;
 
@@ -131,13 +144,15 @@ namespace Haley.Services {
         #endregion
 
         string FetchBasePath(IObjectReadRequest request) {
+            Initialize().Wait(); //To ensure base folders are created.
+            string result = BasePath;
             List<string> paths = new List<string>();
             paths.Add(BasePath);
 
             if (request.Client != null) {
                 var info = Indexer.GetClientInfo(request.Client.Name);
                 if (info != null) {
-                    paths.Add(info.Path);
+                    if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
                 } else if (!string.IsNullOrWhiteSpace(request.Client.Name)) {
                     paths.Add(StorageUtils.GetBasePath(request.Client.Name, request.Client.IsControlled).path);
                 }
@@ -146,13 +161,15 @@ namespace Haley.Services {
             if (request.Module != null) {
                 var info = Indexer.GetModuleInfo(request.Module.Name);
                 if (info != null) {
-                    paths.Add(info.Path);
+                    if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
                 } else if (!string.IsNullOrWhiteSpace(request.Module.Name)) {
                     paths.Add(StorageUtils.GetBasePath(request.Module.Name, request.Module.IsControlled).path);
                 }
             }
-            if (paths.Count > 0) return Path.Combine(paths.ToArray());
-            return BasePath;
+            if (paths.Count > 0) result = Path.Combine(paths.ToArray());
+
+            if (!Directory.Exists(result)) throw new DirectoryNotFoundException("The base path doesn't exists.. Unable to build the base path from given input.");
+            return result;
         }
 
         #region Disk Storage Management 

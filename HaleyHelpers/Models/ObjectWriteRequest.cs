@@ -16,6 +16,16 @@ namespace Haley.Models {
         public int BufferSize { get; set; } = 8192;
         public string Id { get; set; }
         public Stream FileStream { get; set; }
+
+        public new ObjectWriteRequest SetClient(string name, bool isControlled = true) {
+             base.SetClient(name, isControlled);
+            return this;
+        }
+
+        public new ObjectWriteRequest SetModule(string name, bool isControlled = true) {
+            base.SetModule(name, isControlled);
+            return this;
+        }
         public ObjectWriteRequest() { }
 
         public virtual object Clone() {

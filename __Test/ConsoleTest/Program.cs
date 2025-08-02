@@ -143,6 +143,10 @@ class Testing {
             await dss.RegisterModule("234asd", false,"bcde",true);
             await dss.RegisterModule("2342234", false,"bcde",true);
             await dss.RegisterModule("lingam", true,"bcde",true);
+
+            await dss.Upload(new ObjectWriteRequest() {
+                FileStream = new FileStream(@"C:\Users\tmp168\Downloads\PNCL Data Compliance - Frame 1(4).jpg",FileMode.Open),
+            });
             Console.ReadKey();
 
         } catch (Exception ex) {
