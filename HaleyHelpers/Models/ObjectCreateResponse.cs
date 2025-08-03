@@ -2,7 +2,7 @@
 
 namespace Haley.Models {
 
-    public class ObjectCreateResponse : Feedback, IObjectCreateResponse {
+    public class ObjectCreateResponse : Feedback, IOSSResponse {
 
         //Object can be a folder object or a file object.
         public string SavedName { get; set; } //We are not going to show this anymore.. not required for user to know

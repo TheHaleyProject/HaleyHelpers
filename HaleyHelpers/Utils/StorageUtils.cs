@@ -4,6 +4,7 @@ using Haley.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,14 +22,31 @@ namespace Haley.Utils
             return input;
         }
 
-        public static (string name, string path, Guid guid) GetBasePath(string name, bool iscontrolled,int split_length = 2, int depth = 0) {
-            if (string.IsNullOrWhiteSpace(name)) return (string.Empty, string.Empty, Guid.Empty);
-            var dbname = name.ToDBName();
-            var hashguid = dbname.CreateGUID(HashMethod.Sha256);
+        public static (string name, string path, Guid guid) GenerateControlledPath(OSSName nObj, OSSParseMode pmode = OSSParseMode.Parse, int split_length = 2, int depth = 0, Func<string,long> idGenerator = null) {
+            if (nObj == null || !nObj.Validate().Status) return (string.Empty, string.Empty, Guid.Empty);
+            var dbname = nObj.Name.ToDBName();
+            switch (nObj.ControlMode) {
+                case OSSControlMode.None:
+                    nObj.TargetName = dbname;
+                break;
+                case OSSControlMode.Number:
+                if (dbname.PopulateControlledID(out var objId, pmode, idGenerator)) {
+                    nObj.TargetName = objId.ToString();
+                }
+                break;
+                case OSSControlMode.Guid:
+                    nObj.TargetName = dbname.PopulateControlledGUID(pmode);   
+                break;
+                case OSSControlMode.Both:
+                    //First try it as 
+                break;
+            }
+            dbname.ParseCreateGuid("Input Property",true
+            var hashguid = dbname.CreateGUID(HashMethod.Sha256); //Regardless of the result or parsing.
             string path = dbname;
 
             if (depth < 0) depth = 0;
-            if (depth > 8) depth = 8;
+            if (depth > 12) depth = 12;
 
             if (split_length < 1) split_length = 1;
             if (split_length > 8) split_length = 8;
@@ -131,8 +149,8 @@ namespace Haley.Utils
             return false;
         }
 
-        public static string BuildStoragePath(this IObjectReadRequest input, string basePath, bool allowRootAccess = false, bool readonlyMode = false) {
-            if (input == null || !(input is ObjectReadRequest req)) throw new ArgumentNullException($@"{nameof(IObjectReadRequest)} cannot be null. It has to be of type {nameof(ObjectReadRequest)}");
+        public static string BuildStoragePath(this IOSSRead input, string basePath, bool allowRootAccess = false, bool readonlyMode = false) {
+            if (input == null || !(input is ObjectReadRequest req)) throw new ArgumentNullException($@"{nameof(IOSSRead)} cannot be null. It has to be of type {nameof(ObjectReadRequest)}");
 
             if (basePath.Contains("..")) throw new ArgumentOutOfRangeException("The base path contains invalid segments. Parent directory access is not allowed. Please fix");
             if (!Directory.Exists(basePath)) throw new DirectoryNotFoundException("Base directory not found. Please ensure it is present");
@@ -157,16 +175,18 @@ namespace Haley.Utils
            return Path.Combine(paths.ToArray()); //Will it be in proper order??
         }
 
-        public static string BuildStoragePath(this List<StorageRoute> routes, string basePath, bool allow_root_access, bool readonlyMode) {
+        public static string BuildStoragePath(this List<OSSRoute> routes, string basePath, bool allow_root_access, bool readonlyMode) {
 
             string path = basePath;  
             if (!Directory.Exists(path)) throw new ArgumentException("BasePath Directory doesn't exists.");
 
             //Pull the lastone out.
-            if (routes == null && routes.Count < 1) return path; //Direclty create inside the basepath (applicable in few cases);
+            if (routes == null || routes.Count < 1) return path; //Directly create inside the basepath (applicable in few cases);
                                                                  //If one of the path is trying to make a root access, should we allow or deny?
 
             for (int i = 0; i < routes.Count; i++) { 
+
+                //PATH PROCESSING
                 var route = routes[i];
                 //If we are at the end, ignore
                 string value = route.Path;
@@ -184,6 +204,8 @@ namespace Haley.Utils
                 //If the route is a file, just jump out. Because, if it is a file, may be we are either uploading or fetching the file. the file might even contain it's own sub path as well. 
                 if (route.IsFile) break;
 
+                //DIRECTORY PROCESSING & CREATION
+
                 //1. a) Dir Creation disallowed b) Dir doesn't exists c) The route is not of type Client or Module. 
                 if (!Directory.Exists(path) && !route.CreateIfMissing) {
                     //Whether it is a file or a directory, if user doesn't have access to create it, throw exception.
@@ -200,8 +222,86 @@ namespace Haley.Utils
                 if (!(path?.TryCreateDirectory().Result ?? false)) throw new ArgumentException($@"Unable to create the directory : {route.Key ?? route.Path}");
             }
 
-            if (path.StartsWith(basePath)) throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
+            if (!path.StartsWith(basePath)) throw new ArgumentOutOfRangeException("The generated path is not accessible. Please check the inputs.");
             return path;
+        }
+
+        public static bool TryPopulateControlledGUID(this string value, out string result, OSSParseMode pmode = OSSParseMode.Parse, bool throwExceptions = true) {
+            result = string.Empty;
+
+            //Check if the value is already in the format of a hash.
+            //This method is not responsible for removing the Hyphens, if found.
+            if (string.IsNullOrWhiteSpace(value)) {
+                 if (throwExceptions) throw new ArgumentNullException($@"Input value is null");
+                return false;
+            }
+
+            string workingValue = Path.GetFileNameWithoutExtension(value); //WITHOUT EXTENSION, ONLY FILE NAME
+            switch (pmode) {
+                case OSSParseMode.Parse:
+                case OSSParseMode.ParseOrGenerate:
+                    //Parse Mode : //Check if currently, the value is hashed or not.
+                    Guid guid;
+                    if (workingValue.IsValidGuid(out guid)) result = guid.ToString("N");
+                    if (string.IsNullOrWhiteSpace(result) && workingValue.IsCompactGuid(out guid)) result = guid.ToString("N");
+                    if (pmode == OSSParseMode.ParseOrGenerate) {
+                        if (string.IsNullOrWhiteSpace(result)) {
+                            //We can now generate it.
+                            result = workingValue.ToDBName().CreateGUID(HashMethod.Sha256).ToString("N");
+                        }
+                    } else {
+                        if (string.IsNullOrWhiteSpace(result)) {
+                        if (throwExceptions) throw new ArgumentException($@"The value is not a valid GUID string. Please send only valid GUID");
+                        return false;
+                        }
+                    }
+                break;
+                case OSSParseMode.Generate:
+                    //Regardless of what is provided, we generate the hash based GUID.
+                    result = workingValue.ToDBName().CreateGUID(HashMethod.Sha256).ToString("N");
+                break;
+            }
+            result = result.ToLower();
+            return true;
+        }
+        public static bool PopulateControlledID(this string value, out long result, OSSParseMode pmode = OSSParseMode.Parse, Func<string,long> generator = null, bool throwExceptions = true) {
+            result = 0;
+            if (string.IsNullOrWhiteSpace(value)) {
+                if (throwExceptions) throw new ArgumentNullException($@"Input value is null");
+                return false;
+            }
+            string workingValue = Path.GetFileNameWithoutExtension(value); //WITHOUT EXTENSION, ONLY FILE NAME
+            switch (pmode) {
+                case OSSParseMode.Parse:
+                case OSSParseMode.ParseOrGenerate:
+                if (!long.TryParse(workingValue, out result)) {
+                    //Unable to parse
+                    if (pmode == OSSParseMode.Parse) {
+                        if (throwExceptions) throw new ArgumentException($@"For selected Preference & Source : {value} is not a valid filename");
+                        return false;
+                    }
+                    if (generator == null) {
+                        if (throwExceptions) throw new ArgumentNullException("Id Generator should be provided to fetch and generate ID");
+                        return false;
+                    }
+                  
+                    result = generator.Invoke(workingValue);
+                }
+                break;
+                case OSSParseMode.Generate:
+                if (generator == null) {
+                    if (throwExceptions) throw new ArgumentNullException("Id Generator should be provided to fetch and generate ID");
+                    return false;
+                }
+                
+                result = generator.Invoke(workingValue);
+                break;
+            }
+            if (result < 1) {
+                if (throwExceptions) throw new ArgumentException($@"The Id value : {result} is not valid for generating a controlled path");
+                return false;
+            }
+            return true;
         }
     }
 }

@@ -58,10 +58,14 @@ CREATE TABLE IF NOT EXISTS `module` (
   `created` datetime NOT NULL DEFAULT current_timestamp(),
   `active` bit(1) NOT NULL DEFAULT b'1',
   `modified` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `control_mode` int(11) NOT NULL DEFAULT 0 COMMENT '0 - none\n1 - numbers\n2 - hash\n3 - both',
+  `parse_mode` int(11) NOT NULL DEFAULT 0 COMMENT '0- Parse\n1- Generate\n2- Parse or generate',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unq_directory_01` (`parent`,`name`),
   UNIQUE KEY `unq_directory_1` (`parent`,`hash_guid`),
-  CONSTRAINT `fk_direcory_client` FOREIGN KEY (`parent`) REFERENCES `client` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+  CONSTRAINT `fk_direcory_client` FOREIGN KEY (`parent`) REFERENCES `client` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `cns_module` CHECK (`control_mode` >= 0 and `control_mode` < 4),
+  CONSTRAINT `cns_module_1` CHECK (`parse_mode` >= 0 and `parse_mode` < 3)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- Data exporting was unselected.

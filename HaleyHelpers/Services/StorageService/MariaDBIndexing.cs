@@ -16,7 +16,7 @@ using static Haley.Internal.IndexingConstant;
 using static Haley.Internal.IndexingQueries;
 
 namespace Haley.Utils {
-    public class MariaDBIndexing : IDiskStorageIndexing {
+    public class MariaDBIndexing : IDSSIndexing {
         string _masterCoreFile = "dsscore.sql";
         string _masterClientFile = "dssclient.sql";
         string _key;
@@ -26,10 +26,10 @@ namespace Haley.Utils {
             if (!isValidated) await Validate();
         }
 
-        ConcurrentDictionary<string, ModuleDirectoryInfo> _idxModules = new ConcurrentDictionary<string, ModuleDirectoryInfo>();
-        ConcurrentDictionary<string, ClientDirectoryInfo> _idxClients = new ConcurrentDictionary<string, ClientDirectoryInfo>();
+        ConcurrentDictionary<string, OSSModuleInfo> _idxModules = new ConcurrentDictionary<string, OSSModuleInfo>();
+        ConcurrentDictionary<string, OSSClientInfo> _idxClients = new ConcurrentDictionary<string, OSSClientInfo>();
        
-        public async Task<IFeedback> RegisterClient(ClientDirectoryInfo info) {
+        public async Task<IFeedback> RegisterClient(OSSClientInfo info) {
             if (info == null) throw new ArgumentNullException("Input client directory info cannot be null");
             info.Assert();
             //We generate the hash_guid ourselves for the client.
@@ -67,7 +67,7 @@ namespace Haley.Utils {
             }
             return new Feedback(false, "Unable to index the client");
         }
-        public async Task<IFeedback> RegisterModule(ModuleDirectoryInfo info) {
+        public async Task<IFeedback> RegisterModule(OSSModuleInfo info) {
             if (info == null) throw new ArgumentNullException("Input Module directory info cannot be null");
             info.Assert();
             //We generate the hash_guid ourselves for the client.
@@ -120,7 +120,7 @@ namespace Haley.Utils {
             }
            
         }
-        async Task ValidateClient(ClientDirectoryInfo info) {
+        async Task ValidateClient(OSSClientInfo info) {
             if (_idxClients.ContainsKey(info.Name) && _idxClients[info.Name] != null) return; //WHAT IF KEY IS PRESENT BUT IN ACTUAL THE DATABASE WAS DELETED MANUALLY? SHOULDN'T WE CHECK THAT? OR DIRECTLY THROW EXCEPTION AT RUN TIME? OR THAT THE DETAILS ARE NOT UPDATED?
             //if not, we need to ensure that this client schema is created and then add it internally.
             if (string.IsNullOrWhiteSpace(info.HashGuid)) info.HashGuid = info.Name.CreateGUID(HashMethod.Sha256).ToString();
@@ -143,17 +143,17 @@ namespace Haley.Utils {
             name.AssertValue(true, "Client Name");
             var clientName = name.ToDBName();
             
-            await ValidateClient(new ClientDirectoryInfo(name) { Name = clientName});
+            await ValidateClient(new OSSClientInfo(name) { Name = clientName});
         }
 
-        public ClientDirectoryInfo GetClientInfo(string name) {
+        public OSSClientInfo GetClientInfo(string name) {
             if(!name.AssertValue(false))return null;
             var dbname = name.ToDBName();
             if (_idxClients.ContainsKey(dbname)) return _idxClients[dbname];
             return null;
         }
 
-        public ModuleDirectoryInfo GetModuleInfo(string name) {
+        public OSSModuleInfo GetModuleInfo(string name) {
             if (!name.AssertValue(false)) return null;
             var dbname = name.ToDBName();
             if (_idxModules.ContainsKey(dbname)) return _idxModules[dbname];

@@ -12,13 +12,16 @@ using System.CodeDom;
 using System.Security.Cryptography;
 using Microsoft.Identity.Client;
 using static Haley.Utils.ObjectValidation;
+using Microsoft.Extensions.Logging;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace Haley.Services {
     public class DiskStorageService : IDiskStorageService {
         bool _isInitialized = false;
+        public DSSConfig Config { get; set; } = new DSSConfig();
         public DiskStorageService(bool write_mode = true):this(null, null,write_mode) { }
         public DiskStorageService(string basePath, bool write_mode = true) : this(basePath, null,write_mode) { }
-        public DiskStorageService(string basePath, IDiskStorageIndexing indexer, bool write_mode) {
+        public DiskStorageService(string basePath, IDSSIndexing indexer, bool write_mode) {
             BasePath = basePath;
             WriteMode = write_mode;
             //This is supposedly the directory where all storage goes into.
@@ -38,7 +41,7 @@ namespace Haley.Services {
         public string BasePath { get; }
         public bool EnableIndexing { get; set; }
         public bool WriteMode { get; set; }
-        IDiskStorageIndexing Indexer;
+        IDSSIndexing Indexer;
 
         public string GetBasePath() {
             return BasePath;
@@ -49,7 +52,7 @@ namespace Haley.Services {
             return this;
         }
 
-        public IDiskStorageService SetIndexer(IDiskStorageIndexing service) {
+        public IDiskStorageService SetIndexer(IDSSIndexing service) {
             Indexer = service;
             if (Indexer != null) {
                 EnableIndexing = true;
@@ -59,12 +62,14 @@ namespace Haley.Services {
         }
 
         #region Client & Module Management 
-        public async Task<IFeedback> RegisterClient(string name, bool iscontrolled, string password = null) {
+        public async Task<IFeedback> RegisterClient(OSSName name, string password = null) {
             //Password will be stored in the .dss.meta file
-            if (string.IsNullOrWhiteSpace(name)) return new Feedback(false, "Name cannot be empty");
-            if (name.Contains("..") || name.Contains(@"\") || name.Contains(@"/")) return new Feedback(false, "Client Name contains invalid characters");
+            if (name == null) return new Feedback(false, "Name cannot be empty");
+            var nameValidation = name.Validate();
+            if (!nameValidation.Status) return nameValidation;
+
             if (string.IsNullOrWhiteSpace(password)) password = "admin";
-            var cpath = StorageUtils.GetBasePath(name, iscontrolled);
+            var cpath = StorageUtils.GenerateControlledName(name);
             var path = Path.Combine(BasePath, cpath.path);
 
             //Thins is we are not allowing any path to be provided by user. Only the name is allowed.
@@ -95,11 +100,11 @@ namespace Haley.Services {
             if (!Directory.Exists(path)) result.SetStatus(false).SetMessage("Directory was not created. Check if WriteMode is ON Or make sure proper access is availalbe");
 
             if (!result.Status || Indexer == null || !EnableIndexing) return result;
-            var idxResult = await Indexer.RegisterClient(new ClientDirectoryInfo(name) { EncryptKey = encrypt, SigningKey = signing, Name = cpath.name, Path = cpath.path, PasswordHash = pwdHash, HashGuid = cpath.guid.ToString(), IsControlled = iscontrolled });
+            var idxResult = await Indexer.RegisterClient(new OSSClientInfo(name) { EncryptKey = encrypt, SigningKey = signing, Name = cpath.name, Path = cpath.path, PasswordHash = pwdHash, HashGuid = cpath.guid.ToString(), IsControlled = iscontrolled });
             result.Result = idxResult.Result;
             return result;
         }
-        public Task<IFeedback> RegisterModule(string name, bool iscontrolled, string client_name, bool isclient_controlled) {
+        public Task<IFeedback> RegisterModule(OSSName name, OSSName client_name, OSSControlMode content_control = OSSControlMode.None, bool generate_cname = false) {
             //AssertValues(true, (client_name,"client name"), (name,"module name")); //uses reflection and might carry performance penalty
             client_name.AssertValue(true, "Client Name");
             name.AssertValue(true, "Module Name");
@@ -136,14 +141,14 @@ namespace Haley.Services {
             if (!Directory.Exists(path)) result.SetStatus(false).SetMessage("Directory is not created. Please ensure if the WriteMode is turned ON or proper access is availalbe.");
 
             if (Indexer == null || !EnableIndexing) return result;
-            var idxResult = await Indexer.RegisterModule(new ModuleDirectoryInfo(client_name, name) { Name = cpath.name, Path = cpath.path, HashGuid = cpath.guid.ToString(), IsControlled = iscontrolled });
+            var idxResult = await Indexer.RegisterModule(new OSSModuleInfo(client_name, name) { Name = cpath.name, Path = cpath.path, HashGuid = cpath.guid.ToString(), IsControlled = iscontrolled });
             result.Result = idxResult.Result;
             return result;
 
         }
         #endregion
 
-        string FetchBasePath(IObjectReadRequest request) {
+        string FetchBasePath(IOSSRead request) {
             Initialize().Wait(); //To ensure base folders are created.
             string result = BasePath;
             List<string> paths = new List<string>();
@@ -173,13 +178,30 @@ namespace Haley.Services {
         }
 
         #region Disk Storage Management 
-        public async Task<IObjectCreateResponse> Upload(IObjectUploadRequest input) {
+        public async Task<IOSSResponse> Upload(IOSSWrite input) {
             ObjectCreateResponse result = new ObjectCreateResponse() {
                 Status = false,
-                RawName = input.RawName
+                RawName = input.FileOriginalName
             };
             try {
-                input?.BuildStoragePath(FetchBasePath(input)); //This will also ensure we are not trying to delete something 
+                //The last storage route should be in the format of a file
+                if (!input.StorageRoutes.Last().IsFile) {
+                    //We are trying to upload a file but the last storage route is not in the format of a file.
+                    //We need to see if the filestream is present and take the name from there.
+                    //Priority for the name comes from TargetName
+                    if (!string.IsNullOrWhiteSpace(input.TargetName)) {
+                        input.StorageRoutes.Add(new OSSRoute(input.TargetName, input.TargetName.ToDBName(), true, false));
+                    } else if (!string.IsNullOrWhiteSpace(input.FileOriginalName)) {
+                        input.StorageRoutes.Add(new OSSRoute(input.FileOriginalName, input.FileOriginalName.ToDBName(), true, false));
+                    }else if (input.FileStream != null && input.FileStream is FileStream fs) {
+                        input.StorageRoutes.Add(new OSSRoute(fs.Name,fs.Name.ToDBName(), true, false));
+                    } else {
+                        throw new ArgumentNullException("For the given file no save name is specified.");
+                    }
+                }
+
+                var bpath = FetchBasePath(input);
+                input?.BuildStoragePath(bpath); //This will also ensure we are not trying to delete something 
                 if (string.IsNullOrWhiteSpace(input.TargetPath)) {
                     result.Message = "Unable to generate the final storage path. Please check inputs.";
                     return result;
@@ -190,14 +212,18 @@ namespace Haley.Services {
                 if (input.FileStream == null) throw new ArgumentException($@"File stream is null. Nothing to save.");
                 input.FileStream.Position = 0; //Precaution
 
-                if (!FilePreProcess(result, input.TargetPath, input.ResolveMode)) return result;
+                if (input.TargetPath == bpath) throw new ArgumentException($@"No file save name is processed.");
+
+                if (!ShouldProceedFileUpload(result, input.TargetPath, input.ResolveMode)) return result;
 
                 //Either file doesn't exists.. or exists and replace
 
-                if (!result.ObjectExists || input.ResolveMode == ObjectExistsResolveMode.Replace) {
+                if (!result.ObjectExists || input.ResolveMode == OSSResolveMode.Replace) {
                     //TODO : DEFERRED REPLACEMENT
                     //If the file is currently in use, try for 5 times and then replace. May be easy option would be to store in temporary place and then update a database that a temporary file is created and then later, with some background process check the database and try to replace. This way we dont' have to block the api call or wait for completion.
                     await input.FileStream?.TryReplaceFileAsync(input.TargetPath, input.BufferSize);
+                } else if (input.ResolveMode == OSSResolveMode.Revise) {
+                    //Then we revise the file and store in same location.
                 }
 
                 if (!result.ObjectExists) result.Message = "Uploaded."; //For skip also, we will return true (but object will exists)
@@ -211,8 +237,8 @@ namespace Haley.Services {
             return result;
         }
 
-        public Task<IFileStreamResponse> Download(IObjectReadRequest input, bool auto_search_extension = true) {
-            IFileStreamResponse result = new FileStreamResponse() { Status = false, Stream = Stream.Null };
+        public Task<IOSSFileStreamResponse> Download(IOSSRead input, bool auto_search_extension = true) {
+            IOSSFileStreamResponse result = new FileStreamResponse() { Status = false, Stream = Stream.Null };
             var path = input?.BuildStoragePath(FetchBasePath(input)); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(result);
 
@@ -249,7 +275,7 @@ namespace Haley.Services {
             return Task.FromResult(result); //Stream is open here.
         }
 
-        public async Task<IFeedback> Delete(IObjectReadRequest input) {
+        public async Task<IFeedback> Delete(IOSSRead input) {
             IFeedback feedback = new Feedback() { Status = false };
             var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to create something 
             if (string.IsNullOrWhiteSpace(path)) {
@@ -267,7 +293,7 @@ namespace Haley.Services {
             return feedback;
         }
 
-        public IFeedback Exists(IObjectReadRequest input) {
+        public IFeedback Exists(IOSSRead input) {
             var feedback = new Feedback() { Status = false };
             var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
@@ -285,14 +311,14 @@ namespace Haley.Services {
             return feedback;
         }
 
-        public long GetSize(IObjectReadRequest input) {
+        public long GetSize(IOSSRead input) {
             var path = input?.BuildStoragePath(FetchBasePath(input)); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return 0;
             return new FileInfo(path).Length;
         }
 
-        public Task<IDirectoryInfoResponse> GetDirectoryInfo(IObjectReadRequest input) {
-            IDirectoryInfoResponse result = new DirectoryInfoResponse() { Status = false};
+        public Task<IOSSDirResponse> GetDirectoryInfo(IOSSRead input) {
+            IOSSDirResponse result = new DirectoryInfoResponse() { Status = false};
 
             var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to delete something 
             if (string.IsNullOrWhiteSpace(path)) {
@@ -313,8 +339,8 @@ namespace Haley.Services {
             return Task.FromResult(result);
         }
 
-        public async Task<IObjectCreateResponse> CreateDirectory(IObjectReadRequest input, string rawname) {
-            IObjectCreateResponse result = new ObjectCreateResponse() {
+        public async Task<IOSSResponse> CreateDirectory(IOSSRead input, string rawname) {
+            IOSSResponse result = new ObjectCreateResponse() {
                 Status = false,
                 RawName = rawname
             };
@@ -344,7 +370,7 @@ namespace Haley.Services {
             return result;
         }
 
-        public async  Task<IFeedback> DeleteDirectory(IObjectReadRequest input, bool recursive) {
+        public async  Task<IFeedback> DeleteDirectory(IOSSRead input, bool recursive) {
             IFeedback feedback = new Feedback() { Status = false };
             var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode: true);
             if (string.IsNullOrWhiteSpace(path)) {
@@ -377,10 +403,9 @@ namespace Haley.Services {
         #region Helpers
        
 
-        bool FilePreProcess(IObjectCreateResponse result, string filePath, ObjectExistsResolveMode conflict) {
+        bool ShouldProceedFileUpload(IOSSResponse result, string filePath, OSSResolveMode conflict) {
 
             var targetDir = Path.GetDirectoryName(filePath); //Get only the directory.
-
             //Should we even try to generate the directory first???
             if (!(targetDir?.TryCreateDirectory().Result ?? false)) {
                 result.Message = $@"Unable to ensure storage directory. Please check if it is valid. {targetDir}";
@@ -389,23 +414,26 @@ namespace Haley.Services {
 
             if (!filePath.StartsWith(BasePath)) {
                 result.Message = "Not authorized for this folder. Please check the path.";
-                return false;
+                return false; 
             }
 
             result.ObjectExists = File.Exists(filePath);
             if (result.ObjectExists) {
                 switch (conflict) {
-                    case ObjectExistsResolveMode.Skip:
-                    result.Status = true;
+                    case OSSResolveMode.Skip:
+                    result.Status = true; 
                     result.Message = "File exists. Skipped";
-                    return true; //Skip if it already exists.
-                    case ObjectExistsResolveMode.ReturnError:
+                    return false; //DONT PROCESS FURTHER
+                    case OSSResolveMode.ReturnError:
                     result.Status = false;
                     result.Message = $@"File Exists. Returned Error.";
-                    return false;
-                    case ObjectExistsResolveMode.Replace:
+                    return false; //DONT PROCESS FURTHER
+                    case OSSResolveMode.Replace:
                     result.Message = "Replace initiated";
-                    return true;
+                    return true; //PROCESS FURTHER
+                    case OSSResolveMode.Revise:
+                    result.Message = "File revision initiated";
+                    return true; //PROCESS FURTHER
                 }
             }
             return true;

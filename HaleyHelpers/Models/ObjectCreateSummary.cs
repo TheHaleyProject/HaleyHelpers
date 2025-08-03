@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 
 namespace Haley.Models {
-    public class ObjectCreateSummary :Feedback, IObjectCreateSummary {
+    public class ObjectCreateSummary :Feedback, IOSSSummary {
         public int Passed { get; set; }
         public int Failed { get; set; }
         public string TotalSizeUploaded { get; set; }
-        public List<IObjectCreateResponse> PassedObjects { get; set; } = new List<IObjectCreateResponse>();
-        public List<IObjectCreateResponse> FailedObjects { get; set; } = new List<IObjectCreateResponse>();
+        public List<IOSSResponse> PassedObjects { get; set; } = new List<IOSSResponse>();
+        public List<IOSSResponse> FailedObjects { get; set; } = new List<IOSSResponse>();
         public ObjectCreateSummary() {  }
     }
 }
