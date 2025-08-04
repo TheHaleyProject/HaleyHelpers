@@ -127,7 +127,7 @@ namespace Haley.Services {
             var nameValidation = input.Validate();
             if (!nameValidation.Status) return nameValidation;
 
-            var cInput = GenerateBasePath(input,Config.ClientSuffix); //For client, we only prefer hash mode.
+            var cInput = GenerateBasePath(input,Config.ModuleSuffix); //For client, we only prefer hash mode.
             var path = Path.Combine(client_path, cInput.path); //Including Client Path
 
             //Create these folders and then register them.
@@ -164,6 +164,7 @@ namespace Haley.Services {
                     if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
                 } else if (!string.IsNullOrWhiteSpace(request.Client.DisplayName)) {
                     paths.Add(GenerateBasePath(request.Client,Config.ClientSuffix).path);
+                    //Now add this to the client info inside the indexer. //Because we have generated something
                 }
             }
 
@@ -194,9 +195,11 @@ namespace Haley.Services {
                     //We need to see if the filestream is present and take the name from there.
                     //Priority for the name comes from TargetName
                     if (!string.IsNullOrWhiteSpace(input.TargetName)) {
-                        input.StorageRoutes.Add(new OSSRoute(input.TargetName, input.TargetName.ToDBName(), true, false));
+                        var tname = Path.GetFileName(input.TargetName);
+                        input.StorageRoutes.Add(new OSSRoute(tname, tname.ToDBName(), true, false));
                     } else if (!string.IsNullOrWhiteSpace(input.FileOriginalName)) {
-                        input.StorageRoutes.Add(new OSSRoute(input.FileOriginalName, input.FileOriginalName.ToDBName(), true, false));
+                        var oname = Path.GetFileName(input.FileOriginalName);
+                        input.StorageRoutes.Add(new OSSRoute(oname, oname.ToDBName(), true, false));
                     }else if (input.FileStream != null && input.FileStream is FileStream fs) {
                         var fsName = Path.GetFileName(fs.Name);
                         input.StorageRoutes.Add(new OSSRoute(fsName, fsName.ToDBName(), true, false));

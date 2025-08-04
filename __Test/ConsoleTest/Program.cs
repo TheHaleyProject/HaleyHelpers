@@ -149,6 +149,8 @@ class Testing {
                     FileStream = new FileStream(@"C:\Users\tmp168\Downloads\PNCL Data Compliance - Frame 1(4).jpg", FileMode.Open, FileAccess.Read),
                     ResolveMode = OSSResolveMode.Revise,
                     TargetName = @"C:\Users\tmp168\Downloads\response_1751620873480.json",
+                    Client = new OSSName("olacabs",OSSControlMode.Guid),
+                    Module = new OSSName("test",OSSControlMode.Guid)
                 });
                 Console.WriteLine($@"Status : {status.Status}, Message : {status.Message}");
             }
