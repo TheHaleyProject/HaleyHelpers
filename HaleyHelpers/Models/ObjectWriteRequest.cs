@@ -18,13 +18,13 @@ namespace Haley.Models {
         public string Id { get; set; }
         public Stream FileStream { get; set; }
 
-        public new ObjectWriteRequest SetClient(string name, bool isControlled = true) {
-             base.SetClient(name, isControlled);
+        public new ObjectWriteRequest SetClient(OSSName input) {
+             base.SetClient(input);
             return this;
         }
 
-        public new ObjectWriteRequest SetModule(string name, bool isControlled = true) {
-            base.SetModule(name, isControlled);
+        public new ObjectWriteRequest SetModule(OSSName input) {
+            base.SetModule(input);
             return this;
         }
         public ObjectWriteRequest() { }

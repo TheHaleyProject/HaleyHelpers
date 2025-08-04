@@ -47,7 +47,11 @@ namespace Haley.Utils {
                     await _agw.NonQuery((new AdapterArgs(_key) { Query = CLIENT.UPSERTKEYS }).ForTransaction(thandler), (ID, cliId), (SIGNKEY, info.SigningKey), (ENCRYPTKEY, info.EncryptKey), (PASSWORD, info.PasswordHash));
                 }
             } else {
-                if (info.HashGuid == null) info.HashGuid = info.Name.CreateGUID(HashMethod.Sha256).ToString(); //No Context added. Check this one later.
+                
+                if (info.HashGuid == null) {
+                    info.DisplayName.TryPopulateControlledGUID(out var hashGuid, OSSParseMode.ParseOrGenerate, false); //Not error thrown.
+                    info.HashGuid = hashGuid.ToString("N"); //No Context added. Check this one later.
+                }
                 using (thandler.Begin()) {
                     //Register client
                     await _agw.NonQuery((new AdapterArgs(_key) { Query = CLIENT.UPSERT }).ForTransaction(thandler), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.HashGuid), (PATH, info.Path));
@@ -75,14 +79,18 @@ namespace Haley.Utils {
 
             //Check if client exists. If not throw exeception or don't register? //Send feedback.
             var cexists = await _agw.Scalar(new AdapterArgs(_key) { Query = CLIENT.EXISTS }, (NAME, info.ClientName.ToDBName()));
-            if (cexists == null || !(cexists is int clientId)) throw new ArgumentException($@"Client {info.ClientName} doesn't exist. Unable to index the module {info.Name}.");
+            if (cexists == null || !(cexists is int clientId)) throw new ArgumentException($@"Client {info.ClientName} doesn't exist. Unable to index the module {info.DisplayName}.");
             var mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
             if (mexists != null && mexists is long mId) {
                 //Module exists. .just update it.
-                await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPDATE }, (DNAME, info.DisplayName), (PATH, info.Path), (ID, mId));
+                await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPDATE }, (DNAME, info.DisplayName), (PATH, info.Path),(CONTROLMODE,(int)info.ControlMode),(PARSEMODE,(int)info.ParseMode), (ID, mId));
             } else {
-                if (info.HashGuid == null) info.HashGuid = info.Name.CreateGUID(HashMethod.Sha256).ToString(); //No Context added. Check this one later.
-                await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPSERT }, (PARENT, clientId), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.HashGuid), (PATH, info.Path));
+                if (info.HashGuid == null) {
+                    info.DisplayName.TryPopulateControlledGUID(out var hashGuid, OSSParseMode.ParseOrGenerate, false); //Not error thrown.
+                    info.HashGuid = hashGuid.ToString("N"); //No Context added. Check this one later.
+                }
+
+                await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPSERT }, (PARENT, clientId), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.HashGuid), (PATH, info.Path),(CONTROLMODE, (int)info.ControlMode), (PARSEMODE, (int)info.ParseMode));
             }
 
             mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
@@ -123,7 +131,7 @@ namespace Haley.Utils {
         async Task ValidateClient(OSSClientInfo info) {
             if (_idxClients.ContainsKey(info.Name) && _idxClients[info.Name] != null) return; //WHAT IF KEY IS PRESENT BUT IN ACTUAL THE DATABASE WAS DELETED MANUALLY? SHOULDN'T WE CHECK THAT? OR DIRECTLY THROW EXCEPTION AT RUN TIME? OR THAT THE DETAILS ARE NOT UPDATED?
             //if not, we need to ensure that this client schema is created and then add it internally.
-            if (string.IsNullOrWhiteSpace(info.HashGuid)) info.HashGuid = info.Name.CreateGUID(HashMethod.Sha256).ToString();
+            if (string.IsNullOrWhiteSpace(info.HashGuid)) info.HashGuid = info.DisplayName.CreateGUID(HashMethod.Sha256).ToString();
             if (string.IsNullOrWhiteSpace(info.DatabaseName)) info.DatabaseName = $@"dss_{info.HashGuid.ToString().Replace("-", "")}";
             var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), "Resources", _masterClientFile);
             if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql for client file is not found. Please check : {_masterClientFile}");
@@ -143,7 +151,7 @@ namespace Haley.Utils {
             name.AssertValue(true, "Client Name");
             var clientName = name.ToDBName();
             
-            await ValidateClient(new OSSClientInfo(name) { Name = clientName});
+            await ValidateClient(new OSSClientInfo() { ControlledName = clientName,DisplayName = name});
         }
 
         public OSSClientInfo GetClientInfo(string name) {

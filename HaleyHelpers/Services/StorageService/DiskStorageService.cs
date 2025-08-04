@@ -34,8 +34,8 @@ namespace Haley.Services {
         }
         async Task Initialize(bool force = false) {
             if (_isInitialized && !force) return;
-            await RegisterClient(ObjectReadRequest.DEFAULTNAME, false);
-            await RegisterModule(ObjectReadRequest.DEFAULTNAME, false, ObjectReadRequest.DEFAULTNAME, false);
+            await RegisterClient(new OSSName()); //Registers defaul client
+            await RegisterModule(new OSSName(), new OSSName()); //Registers default module
             _isInitialized = true;
         }
         public string BasePath { get; }
@@ -62,15 +62,25 @@ namespace Haley.Services {
         }
 
         #region Client & Module Management 
-        public async Task<IFeedback> RegisterClient(OSSName name, string password = null) {
-            //Password will be stored in the .dss.meta file
-            if (name == null) return new Feedback(false, "Name cannot be empty");
-            var nameValidation = name.Validate();
-            if (!nameValidation.Status) return nameValidation;
+        public (string name, string path, Guid guid) GenerateBasePath(OSSName input) {
+            return OSSUtils.GenerateControlledPath(input, OSSParseMode.ParseOrGenerate, 2, 5, null, false);
+        }
+        public Task<IFeedback> RegisterClient(string name, string password = null) {
+            return RegisterClient(new OSSName(name));
+        }
 
+        public Task<IFeedback> RegisterModule(string name, string client_name = null) {
+            return RegisterModule(new OSSName(name), new OSSName(client_name));
+        }
+        public async Task<IFeedback> RegisterClient(OSSName input, string password = null) {
+            //Password will be stored in the .dss.meta file
+            if (input == null) return new Feedback(false, "Name cannot be empty");
+            var nameValidation = input.Validate();
+            if (!nameValidation.Status) return nameValidation;
+            if (input.ControlMode != OSSControlMode.None) input.ControlMode = OSSControlMode.Guid; //Either we allow as is, or we go with GUID. no numbers allowed.
             if (string.IsNullOrWhiteSpace(password)) password = "admin";
-            var cpath = StorageUtils.GenerateControlledName(name);
-            var path = Path.Combine(BasePath, cpath.path);
+            var cInput = GenerateBasePath(input); //For client, we only prefer hash mode.
+            var path = Path.Combine(BasePath, cInput.path);
 
             //Thins is we are not allowing any path to be provided by user. Only the name is allowed.
 
@@ -82,66 +92,60 @@ namespace Haley.Services {
             var signing = RandomUtils.GetString(512);
             var encrypt = RandomUtils.GetString(512);
             var pwdHash = HashUtils.ComputeHash(password, HashMethod.Sha256);
-            var result = new Feedback(true, $@"Client {name} is registered");
+            var result = new Feedback(true, $@"Client {input.DisplayName} is registered");
 
+            var clientInfo = input.MapProperties(new OSSClientInfo(pwdHash, signing, encrypt) { Path = cInput.path, HashGuid = cInput.guid.ToString("N") });
             if (WriteMode) {
-                Dictionary<string, string> clientMeta = new Dictionary<string, string>();
-                clientMeta.Add("name", name); //Client name
-                clientMeta.Add("guid", cpath.guid.ToString()); // Hash guid
-                clientMeta.Add("password", pwdHash);
-                clientMeta.Add("signing", signing);
-                clientMeta.Add("encrypt", encrypt);
-
-                var keysJson = clientMeta.ToJson();
                 var metaFile = Path.Combine(path, ".client.dss.meta");
-                File.WriteAllText(metaFile, keysJson);   // Over-Write the keys here.
+                File.WriteAllText(metaFile, clientInfo.ToJson());   // Over-Write the keys here.
             }
 
             if (!Directory.Exists(path)) result.SetStatus(false).SetMessage("Directory was not created. Check if WriteMode is ON Or make sure proper access is availalbe");
 
             if (!result.Status || Indexer == null || !EnableIndexing) return result;
-            var idxResult = await Indexer.RegisterClient(new OSSClientInfo(name) { EncryptKey = encrypt, SigningKey = signing, Name = cpath.name, Path = cpath.path, PasswordHash = pwdHash, HashGuid = cpath.guid.ToString(), IsControlled = iscontrolled });
+            var idxResult = await Indexer.RegisterClient(clientInfo);
             result.Result = idxResult.Result;
             return result;
         }
-        public Task<IFeedback> RegisterModule(OSSName name, OSSName client_name, OSSControlMode content_control = OSSControlMode.None, bool generate_cname = false) {
+        public Task<IFeedback> RegisterModule(OSSName input, OSSName client_input, OSSControlMode content_control = OSSControlMode.None, OSSParseMode content_pmode = OSSParseMode.Parse) {
             //AssertValues(true, (client_name,"client name"), (name,"module name")); //uses reflection and might carry performance penalty
-            client_name.AssertValue(true, "Client Name");
-            name.AssertValue(true, "Module Name");
+            client_input.DisplayName.AssertValue(true, "Client Name");
+            input.DisplayName.AssertValue(true, "Module Name");
 
-            var cpath = StorageUtils.GetBasePath(client_name, isclient_controlled);
-            return RegisterModule(name, iscontrolled,cpath.name, Path.Combine(BasePath, cpath.path));
+            var cInput = GenerateBasePath(input); //For client, we only prefer hash mode.
+            return RegisterModule(input, client_input, Path.Combine(BasePath, cInput.path),content_control,content_pmode);
         }
-        async Task<IFeedback> RegisterModule(string name, bool iscontrolled, string client_name, string client_path) {
+        async Task<IFeedback> RegisterModule(OSSName input, OSSName client_input,string client_path, OSSControlMode content_control = OSSControlMode.None, OSSParseMode content_pmode = OSSParseMode.Parse) {
+            //CLIENT INFORMATION BASIC VALIDATION
             client_path.AssertValue(true, "Client Path");
-            client_name.AssertValue(true, "Client Name");
-            if (!Directory.Exists(client_path)) return new Feedback(false, $@"Directory not found for the client {client_name}");
+            client_input.DisplayName.AssertValue(true, "Client Name");
+            if (!Directory.Exists(client_path)) return new Feedback(false, $@"Directory not found for the client {client_input.DisplayName}");
             if (client_path.Contains("..")) return new Feedback(false, "Client Path contains invalid characters");
-            if (name.Contains("..") || name.Contains(@"\") || name.Contains(@"/")) return new Feedback(false, "Module Name contains invalid characters");
-            var cpath = StorageUtils.GetBasePath(name, iscontrolled);
-            var path = Path.Combine(client_path, cpath.path); //Including Client Path
+
+            //MODULE INFORMATION BASIC VALIDATION
+            if (input == null) return new Feedback(false, "Name cannot be empty");
+            var nameValidation = input.Validate();
+            if (!nameValidation.Status) return nameValidation;
+
+            var cInput = GenerateBasePath(input); //For client, we only prefer hash mode.
+            var path = Path.Combine(client_path, cInput.path); //Including Client Path
 
             //Create these folders and then register them.
             if (!Directory.Exists(path) && WriteMode) {
                 Directory.CreateDirectory(path); //Create the directory.
             }
 
+            var moduleInfo = input.MapProperties(new OSSModuleInfo(client_input.DisplayName) { Path = cInput.path, HashGuid = cInput.guid.ToString("N") });
             if (WriteMode) {
-                Dictionary<string, string> moduleMeta = new Dictionary<string, string>();
-                moduleMeta.Add("name", name); //Client name
-                moduleMeta.Add("guid", cpath.guid.ToString()); // Hash guid
-                moduleMeta.Add("client", client_name);
-
-                var keysJson = moduleMeta.ToJson();
                 var metaFile = Path.Combine(path, ".module.dss.meta");
-                File.WriteAllText(metaFile, keysJson);
+                File.WriteAllText(metaFile, moduleInfo.ToJson());
             }
 
-            var result = new Feedback(true, $@"Module {name} is registered");
+            var result = new Feedback(true, $@"Module {input.DisplayName} is registered");
             if (!Directory.Exists(path)) result.SetStatus(false).SetMessage("Directory is not created. Please ensure if the WriteMode is turned ON or proper access is availalbe.");
 
             if (Indexer == null || !EnableIndexing) return result;
-            var idxResult = await Indexer.RegisterModule(new OSSModuleInfo(client_name, name) { Name = cpath.name, Path = cpath.path, HashGuid = cpath.guid.ToString(), IsControlled = iscontrolled });
+            var idxResult = await Indexer.RegisterModule(moduleInfo);
             result.Result = idxResult.Result;
             return result;
 
@@ -155,20 +159,20 @@ namespace Haley.Services {
             paths.Add(BasePath);
 
             if (request.Client != null) {
-                var info = Indexer.GetClientInfo(request.Client.Name);
+                var info = Indexer.GetClientInfo(request.Client.DisplayName);
                 if (info != null) {
                     if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
-                } else if (!string.IsNullOrWhiteSpace(request.Client.Name)) {
-                    paths.Add(StorageUtils.GetBasePath(request.Client.Name, request.Client.IsControlled).path);
+                } else if (!string.IsNullOrWhiteSpace(request.Client.DisplayName)) {
+                    paths.Add(GenerateBasePath(request.Client).path);
                 }
             }
 
             if (request.Module != null) {
-                var info = Indexer.GetModuleInfo(request.Module.Name);
+                var info = Indexer.GetModuleInfo(request.Module.DisplayName);
                 if (info != null) {
                     if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
-                } else if (!string.IsNullOrWhiteSpace(request.Module.Name)) {
-                    paths.Add(StorageUtils.GetBasePath(request.Module.Name, request.Module.IsControlled).path);
+                } else if (!string.IsNullOrWhiteSpace(request.Module.DisplayName)) {
+                    paths.Add(GenerateBasePath(request.Module).path);
                 }
             }
             if (paths.Count > 0) result = Path.Combine(paths.ToArray());
@@ -185,7 +189,7 @@ namespace Haley.Services {
             };
             try {
                 //The last storage route should be in the format of a file
-                if (!input.StorageRoutes.Last().IsFile) {
+                if (input.StorageRoutes.Count < 1 || !input.StorageRoutes.Last().IsFile) {
                     //We are trying to upload a file but the last storage route is not in the format of a file.
                     //We need to see if the filestream is present and take the name from there.
                     //Priority for the name comes from TargetName
@@ -194,7 +198,8 @@ namespace Haley.Services {
                     } else if (!string.IsNullOrWhiteSpace(input.FileOriginalName)) {
                         input.StorageRoutes.Add(new OSSRoute(input.FileOriginalName, input.FileOriginalName.ToDBName(), true, false));
                     }else if (input.FileStream != null && input.FileStream is FileStream fs) {
-                        input.StorageRoutes.Add(new OSSRoute(fs.Name,fs.Name.ToDBName(), true, false));
+                        var fsName = Path.GetFileName(fs.Name);
+                        input.StorageRoutes.Add(new OSSRoute(fsName, fsName.ToDBName(), true, false));
                     } else {
                         throw new ArgumentNullException("For the given file no save name is specified.");
                     }
@@ -448,6 +453,8 @@ namespace Haley.Services {
             result.Message = "No default implementation available. All requests authorized.";
             return Task.FromResult(result);
         }
+
+      
         #endregion
     }
 }

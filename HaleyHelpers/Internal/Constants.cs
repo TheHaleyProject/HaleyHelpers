@@ -27,6 +27,8 @@ namespace Haley.Internal {
         public static string PASSWORD = $@"@{nameof(PASSWORD)}";
         public static string DATETIME = $@"@{nameof(DATETIME)}";
         public static string PARENT = $@"@{nameof(PARENT)}";
+        public static string CONTROLMODE = $@"@{nameof(CONTROLMODE)}";
+        public static string PARSEMODE = $@"@{nameof(PARSEMODE)}";
 
     }
 
@@ -41,8 +43,8 @@ namespace Haley.Internal {
         
         public class MODULE {
             public static string EXISTS = $@"select m.id from module as m where m.name = {NAME} and m.parent = {PARENT} LIMIT 1;";
-            public static string UPSERT = $@"insert into module (parent,name, display_name,hash_guid,path) values ({PARENT}, {NAME},{DNAME},{GUID},{PATH}) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), path = VALUES(path);";
-            public static string UPDATE = $@"update module set display_name = {DNAME}, path = {PATH} where id = {ID};";
+            public static string UPSERT = $@"insert into module (parent,name, display_name,hash_guid,path,control_mode,parse_mode) values ({PARENT}, {NAME},{DNAME},{GUID},{PATH},{CONTROLMODE},{PARSEMODE}) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), path = VALUES(path),control_mode=VALUES(control_mode),parse_mode=VALUES(parse_mode);";
+            public static string UPDATE = $@"update module set display_name = {DNAME}, path = {PATH},control_mode={CONTROLMODE},parse_mode={PARSEMODE} where id = {ID};";
         }
     }
 }

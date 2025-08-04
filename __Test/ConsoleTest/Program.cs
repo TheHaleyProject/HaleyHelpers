@@ -137,16 +137,17 @@ class Testing {
         try {
             var _agw = new AdapterGateway() { ThrowCRUDExceptions = true }; //Only for testing.
             var dss = new DiskStorageService().SetIndexer(new MariaDBIndexing(_agw, "mss_db"));
-            await dss.RegisterClient("bcde", true);
-            await dss.RegisterModule("test", true,"bcde",true);
-            await dss.RegisterModule("93456", true,"bcde",true);
-            await dss.RegisterModule("234asd", false,"bcde",true);
-            await dss.RegisterModule("2342234", false,"bcde",true);
-            await dss.RegisterModule("lingam", true,"bcde",true);
+            await dss.RegisterClient(new OSSName("bcde"));
+            await dss.RegisterClient(new OSSName("olacabs",OSSControlMode.Guid));
+            await dss.RegisterModule("lingam","bcde");
+            await dss.RegisterModule(new OSSName("test",OSSControlMode.Guid),new OSSName("olacabs",OSSControlMode.Guid));
+            await dss.RegisterModule(new OSSName("test12"),new OSSName("olacabs",OSSControlMode.Guid));
+           
 
-            await dss.Upload(new ObjectWriteRequest() {
-                FileStream = new FileStream(@"C:\Users\tmp168\Downloads\PNCL Data Compliance - Frame 1(4).jpg",FileMode.Open),
+            var status = await dss.Upload(new ObjectWriteRequest() {
+                FileStream = new FileStream(@"C:\Users\tmp168\Downloads\PNCL Data Compliance - Frame 1(4).jpg",FileMode.Open), ResolveMode = OSSResolveMode.Revise
             });
+            Console.WriteLine($@"Status : {status.Status}, Message : {status.Message}");
             Console.ReadKey();
 
         } catch (Exception ex) {

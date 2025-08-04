@@ -3,6 +3,7 @@ using Haley.Enums;
 using Haley.Models;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Haley.Utils
 {
-    public static class StorageUtils {
+    public static class OSSUtils {
         public static string SanitizePath(this string input) {
             if (string.IsNullOrWhiteSpace(input)) return input;
             input = input.Trim();
@@ -22,60 +23,65 @@ namespace Haley.Utils
             return input;
         }
 
-        public static (string name, string path, Guid guid) GenerateControlledPath(OSSName nObj, OSSParseMode pmode = OSSParseMode.Parse, int split_length = 2, int depth = 0, Func<string,long> idGenerator = null) {
+        public static (string name, string path, Guid guid) GenerateControlledPath(OSSName nObj, OSSParseMode pmode = OSSParseMode.Parse, int split_length = 2, int depth = 0, Func<string,long> idGenerator = null,bool throwExceptions = false) {
             if (nObj == null || !nObj.Validate().Status) return (string.Empty, string.Empty, Guid.Empty);
-            var dbname = nObj.Name.ToDBName();
+            string result = string.Empty;
+            var dbname = nObj.Name ?? nObj.DisplayName.ToDBName();
+            Guid hashGuid = Guid.Empty; //Regardless of if the input is number or guid or anything else
+            dbname.TryPopulateControlledGUID(out hashGuid, OSSParseMode.ParseOrGenerate, false); //Not error thrown.
+
+            long objId = 0;
+            Guid objGuid = Guid.Empty;
             switch (nObj.ControlMode) {
                 case OSSControlMode.None:
-                    nObj.TargetName = dbname;
+                    nObj.ControlledName = dbname;
                 break;
                 case OSSControlMode.Number:
-                if (dbname.PopulateControlledID(out var objId, pmode, idGenerator)) {
-                    nObj.TargetName = objId.ToString();
+                if (dbname.TryPopulateControlledID(out objId, pmode, idGenerator, throwExceptions)) {
+                    nObj.ControlledName = objId.ToString();
                 }
                 break;
                 case OSSControlMode.Guid:
-                    nObj.TargetName = dbname.PopulateControlledGUID(pmode);   
+                 if (dbname.TryPopulateControlledGUID(out objGuid, pmode, throwExceptions)) {
+                    nObj.ControlledName = objGuid.ToString("N");
+                }
                 break;
                 case OSSControlMode.Both:
-                    //First try it as 
+                //In case of both, the problem is, we need to first ensure, we are able to parse them.. and then only go ahead with generating.
+                //Focus on parsing first and then if doesn't work, hten jump to generate. Even in that case we need to see through thenend.
+                if (dbname.TryPopulateControlledID(out objId, OSSParseMode.Parse, idGenerator, false)) {
+                    nObj.ControlledName = objId.ToString();
+                } else if(dbname.TryPopulateControlledGUID(out objGuid, OSSParseMode.Parse, false)){
+                    nObj.ControlledName = objGuid.ToString("N");
+                } else if (dbname.TryPopulateControlledID(out objId, pmode, idGenerator, false)) {
+                    //Try with original parsing mode, ,may be we are asked to generte. We dont' know;
+                    nObj.ControlledName = objId.ToString();
+                } else if (dbname.TryPopulateControlledGUID(out objGuid, pmode, throwExceptions)) {
+                    nObj.ControlledName = objGuid.ToString("N");
+                }
                 break;
             }
-            dbname.ParseCreateGuid("Input Property",true
-            var hashguid = dbname.CreateGUID(HashMethod.Sha256); //Regardless of the result or parsing.
-            string path = dbname;
 
+            result = PreparePath(nObj.ControlledName, depth, split_length, nObj.ControlMode);
+            return (nObj.ControlledName, result, hashGuid);
+        }
+
+        public static string PreparePath(string input, int depth =0, int split_length = 2, OSSControlMode control_mode = OSSControlMode.None) {
+            if (string.IsNullOrWhiteSpace(input)) return input;
             if (depth < 0) depth = 0;
             if (depth > 12) depth = 12;
 
             if (split_length < 1) split_length = 1;
             if (split_length > 8) split_length = 8;
 
-            if (iscontrolled) {
-                if (long.TryParse(name, out long res)) {
-                    depth = 0; //For number lets reset depth as 0.
-                    path = res.ToString().Separate(split_length,depth, resultAsPath: true);
-                    //When we deal with numbers, we end the folder with 'd' to denote it as directory and to conflict with other directories.
-                    path += "d"; //ending with 'd'
+            if (control_mode != OSSControlMode.None) {
+                if (input.IsNumber()) {
+                    return input.Separate(split_length, depth, addPadding: true, resultAsPath: true);
                 } else {
-                    if (depth < 1) depth = 4; //We cannot have unlimited depth split for GUID.
-                    path = hashguid.ToString().Replace("-", "").Separate(split_length,depth, addPadding: false, resultAsPath: true);
+                    return input.Separate(split_length, depth, addPadding: false, resultAsPath: true);
                 }
             }
-            return (dbname, path, hashguid);
-        }
-
-        public static string PathFromGUID(this Guid guid, int split_length = 2, int depth = 0) {
-            return PathFromGUID(guid.ToString(),split_length,depth);
-        }
-
-        public static string PathFromGUID(this string guid, int split_length = 2, int depth = 0) {
-            if (depth < 1) depth = 4; //For guid , we cannot have depth at 0
-            if (depth > 8) depth = 8;
-
-            if (split_length < 1) split_length = 1;
-            if (split_length > 8) split_length = 8;
-            return guid.Replace("-", "").Separate(split_length, depth, addPadding: false, resultAsPath: true);
+            return input;
         }
 
         public static async Task<bool> TryReplaceFileAsync(this Stream sourceStream, string path, int bufferSize, int maxRetries = 5, int delayMilliseconds = 500) {
@@ -226,65 +232,57 @@ namespace Haley.Utils
             return path;
         }
 
-        public static bool TryPopulateControlledGUID(this string value, out string result, OSSParseMode pmode = OSSParseMode.Parse, bool throwExceptions = true) {
-            result = string.Empty;
-
+        public static bool TryPopulateControlledGUID(this string value, out Guid result, OSSParseMode pmode = OSSParseMode.Parse, bool throwExceptions = false) {
+            result = Guid.Empty;
             //Check if the value is already in the format of a hash.
             //This method is not responsible for removing the Hyphens, if found.
             if (string.IsNullOrWhiteSpace(value)) {
-                 if (throwExceptions) throw new ArgumentNullException($@"Input value is null");
+                if (throwExceptions) throw new ArgumentNullException("Unable to generate the GUID. The provided input is null or empty.");
                 return false;
             }
-
+            Guid guid;
             string workingValue = Path.GetFileNameWithoutExtension(value); //WITHOUT EXTENSION, ONLY FILE NAME
             switch (pmode) {
                 case OSSParseMode.Parse:
                 case OSSParseMode.ParseOrGenerate:
                     //Parse Mode : //Check if currently, the value is hashed or not.
-                    Guid guid;
-                    if (workingValue.IsValidGuid(out guid)) result = guid.ToString("N");
-                    if (string.IsNullOrWhiteSpace(result) && workingValue.IsCompactGuid(out guid)) result = guid.ToString("N");
-                    if (pmode == OSSParseMode.ParseOrGenerate) {
-                        if (string.IsNullOrWhiteSpace(result)) {
-                            //We can now generate it.
-                            result = workingValue.ToDBName().CreateGUID(HashMethod.Sha256).ToString("N");
-                        }
+                    
+                    if (workingValue.IsValidGuid(out guid)) {
+                    } else if (workingValue.IsCompactGuid(out guid)) {
+                    } else if (pmode == OSSParseMode.ParseOrGenerate) {
+                    guid = workingValue.ToDBName().CreateGUID(HashMethod.Sha256);
                     } else {
-                        if (string.IsNullOrWhiteSpace(result)) {
-                        if (throwExceptions) throw new ArgumentException($@"The value is not a valid GUID string. Please send only valid GUID");
+                        if (throwExceptions) throw new ArgumentNullException("Unable to generate the GUID. Please check the input.");
                         return false;
-                        }
                     }
                 break;
                 case OSSParseMode.Generate:
-                    //Regardless of what is provided, we generate the hash based GUID.
-                    result = workingValue.ToDBName().CreateGUID(HashMethod.Sha256).ToString("N");
+                //Regardless of what is provided, we generate the hash based GUID.
+                    guid = workingValue.ToDBName().CreateGUID(HashMethod.Sha256);
                 break;
             }
-            result = result.ToLower();
+            result = guid;
             return true;
         }
-        public static bool PopulateControlledID(this string value, out long result, OSSParseMode pmode = OSSParseMode.Parse, Func<string,long> generator = null, bool throwExceptions = true) {
+        public static bool TryPopulateControlledID(this string value, out long result, OSSParseMode pmode = OSSParseMode.Parse, Func<string,long> generator = null,bool throwExceptions = false) {
             result = 0;
             if (string.IsNullOrWhiteSpace(value)) {
-                if (throwExceptions) throw new ArgumentNullException($@"Input value is null");
+                if (throwExceptions) throw new ArgumentNullException("Unable to generate the ID. The provided input is null or empty.");
                 return false;
             }
             string workingValue = Path.GetFileNameWithoutExtension(value); //WITHOUT EXTENSION, ONLY FILE NAME
             switch (pmode) {
                 case OSSParseMode.Parse:
                 case OSSParseMode.ParseOrGenerate:
+                    //For parse mode, we first try to parse.
                 if (!long.TryParse(workingValue, out result)) {
-                    //Unable to parse
-                    if (pmode == OSSParseMode.Parse) {
-                        if (throwExceptions) throw new ArgumentException($@"For selected Preference & Source : {value} is not a valid filename");
+                    //if it fails to parse, then check if we are allowed to generate.
+                    //For parse mode also, we return false, For ParseOrGenerate if the generator is null, we return as well.
+
+                    if (pmode == OSSParseMode.Parse || generator == null) {
+                        if (throwExceptions) throw new ArgumentNullException($@"The provided input is not in the number format. Unable to parse a long value. ID Generator status : {generator != null}");
                         return false;
                     }
-                    if (generator == null) {
-                        if (throwExceptions) throw new ArgumentNullException("Id Generator should be provided to fetch and generate ID");
-                        return false;
-                    }
-                  
                     result = generator.Invoke(workingValue);
                 }
                 break;
@@ -298,7 +296,7 @@ namespace Haley.Utils
                 break;
             }
             if (result < 1) {
-                if (throwExceptions) throw new ArgumentException($@"The Id value : {result} is not valid for generating a controlled path");
+                if (throwExceptions) throw new ArgumentNullException("The final generated id is less than 1. Not acceptable. Please check the inputs.");
                 return false;
             }
             return true;
