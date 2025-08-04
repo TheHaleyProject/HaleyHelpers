@@ -151,7 +151,7 @@ namespace Haley.Utils {
             name.AssertValue(true, "Client Name");
             var clientName = name.ToDBName();
             
-            await ValidateClient(new OSSClientInfo() { ControlledName = clientName,DisplayName = name});
+            await ValidateClient(new OSSClientInfo() { SaveAsName = clientName,DisplayName = name});
         }
 
         public OSSClientInfo GetClientInfo(string name) {

@@ -62,8 +62,8 @@ namespace Haley.Services {
         }
 
         #region Client & Module Management 
-        public (string name, string path, Guid guid) GenerateBasePath(OSSName input) {
-            return OSSUtils.GenerateControlledPath(input, OSSParseMode.ParseOrGenerate, 2, 5, null, false);
+        public (string name, string path, Guid guid) GenerateBasePath(OSSName input, string suffix) {
+            return OSSUtils.GenerateFileSystemSavePath(input, OSSParseMode.ParseOrGenerate, 2, 5, suffix: suffix, throwExceptions: false);
         }
         public Task<IFeedback> RegisterClient(string name, string password = null) {
             return RegisterClient(new OSSName(name));
@@ -79,7 +79,7 @@ namespace Haley.Services {
             if (!nameValidation.Status) return nameValidation;
             if (input.ControlMode != OSSControlMode.None) input.ControlMode = OSSControlMode.Guid; //Either we allow as is, or we go with GUID. no numbers allowed.
             if (string.IsNullOrWhiteSpace(password)) password = "admin";
-            var cInput = GenerateBasePath(input); //For client, we only prefer hash mode.
+            var cInput = GenerateBasePath(input,Config.ClientSuffix); //For client, we only prefer hash mode.
             var path = Path.Combine(BasePath, cInput.path);
 
             //Thins is we are not allowing any path to be provided by user. Only the name is allowed.
@@ -112,7 +112,7 @@ namespace Haley.Services {
             client_input.DisplayName.AssertValue(true, "Client Name");
             input.DisplayName.AssertValue(true, "Module Name");
 
-            var cInput = GenerateBasePath(input); //For client, we only prefer hash mode.
+            var cInput = GenerateBasePath(client_input, Config.ClientSuffix); //For client, we only prefer hash mode.
             return RegisterModule(input, client_input, Path.Combine(BasePath, cInput.path),content_control,content_pmode);
         }
         async Task<IFeedback> RegisterModule(OSSName input, OSSName client_input,string client_path, OSSControlMode content_control = OSSControlMode.None, OSSParseMode content_pmode = OSSParseMode.Parse) {
@@ -127,7 +127,7 @@ namespace Haley.Services {
             var nameValidation = input.Validate();
             if (!nameValidation.Status) return nameValidation;
 
-            var cInput = GenerateBasePath(input); //For client, we only prefer hash mode.
+            var cInput = GenerateBasePath(input,Config.ClientSuffix); //For client, we only prefer hash mode.
             var path = Path.Combine(client_path, cInput.path); //Including Client Path
 
             //Create these folders and then register them.
@@ -135,7 +135,7 @@ namespace Haley.Services {
                 Directory.CreateDirectory(path); //Create the directory.
             }
 
-            var moduleInfo = input.MapProperties(new OSSModuleInfo(client_input.DisplayName) { Path = cInput.path, HashGuid = cInput.guid.ToString("N") });
+            var moduleInfo = input.MapProperties(new OSSModuleInfo(client_input.DisplayName) { Path = cInput.path, HashGuid = cInput.guid.ToString("N"),ContentControl = content_control, ContentParse = content_pmode });
             if (WriteMode) {
                 var metaFile = Path.Combine(path, ".module.dss.meta");
                 File.WriteAllText(metaFile, moduleInfo.ToJson());
@@ -163,7 +163,7 @@ namespace Haley.Services {
                 if (info != null) {
                     if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
                 } else if (!string.IsNullOrWhiteSpace(request.Client.DisplayName)) {
-                    paths.Add(GenerateBasePath(request.Client).path);
+                    paths.Add(GenerateBasePath(request.Client,Config.ClientSuffix).path);
                 }
             }
 
@@ -172,7 +172,7 @@ namespace Haley.Services {
                 if (info != null) {
                     if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
                 } else if (!string.IsNullOrWhiteSpace(request.Module.DisplayName)) {
-                    paths.Add(GenerateBasePath(request.Module).path);
+                    paths.Add(GenerateBasePath(request.Module,Config.ModuleSuffix).path);
                 }
             }
             if (paths.Count > 0) result = Path.Combine(paths.ToArray());
@@ -183,7 +183,7 @@ namespace Haley.Services {
 
         #region Disk Storage Management 
         public async Task<IOSSResponse> Upload(IOSSWrite input) {
-            ObjectCreateResponse result = new ObjectCreateResponse() {
+            OSSResponse result = new OSSResponse() {
                 Status = false,
                 RawName = input.FileOriginalName
             };
@@ -212,6 +212,25 @@ namespace Haley.Services {
                     return result;
                 }
 
+                //What if there is some extension and is missing??
+                if (string.IsNullOrWhiteSpace(Path.GetExtension(bpath))) {
+                    string exten = string.Empty;
+                    //Extension is missing. Lets figure out if we have somewhere. 
+                    //Check if target name has it or the origianl filename has it.
+                    do {
+                        exten = Path.GetExtension(input.TargetName); 
+                        if (!string.IsNullOrWhiteSpace(exten)) break;
+                        exten = Path.GetExtension(input.FileOriginalName);
+                        if (!string.IsNullOrWhiteSpace(exten)) break; 
+                        if (input.FileStream != null && input.FileStream is FileStream fs) {
+                            exten = Path.GetExtension(fs.Name);
+                        }
+                    } while (false); //One time event
+                    if (!string.IsNullOrWhiteSpace(exten)) {
+                        bpath += $@".{exten}";
+                    }
+                }
+
                 if (input.BufferSize < 4096) input.BufferSize = 4096; //Default CopyTo from System.IO has 80KB buffersize. We setit as 4KB for fast storage.
 
                 if (input.FileStream == null) throw new ArgumentException($@"File stream is null. Nothing to save.");
@@ -229,6 +248,20 @@ namespace Haley.Services {
                     await input.FileStream?.TryReplaceFileAsync(input.TargetPath, input.BufferSize);
                 } else if (input.ResolveMode == OSSResolveMode.Revise) {
                     //Then we revise the file and store in same location.
+                    //First get the current version name.. and then 
+                    if (OSSUtils.PopulateVersionedPath(Path.GetDirectoryName(input.TargetPath),input.TargetPath, out var version_path)){
+                        //File exists.. and we also have the name using which we should replace it.
+                        //Try copy the file under current name
+                        try {
+                            //First copy the current file to new version path and then 
+                            if (await OSSUtils.TryCopyFileAsync(input.TargetPath, version_path)) {
+                                //Copy success
+                                await input.FileStream?.TryReplaceFileAsync(input.TargetPath, input.BufferSize);
+                            } 
+                        } catch (Exception) {
+                            await OSSUtils.TryDeleteFile(version_path);
+                        }
+                    }
                 }
 
                 if (!result.ObjectExists) result.Message = "Uploaded."; //For skip also, we will return true (but object will exists)
@@ -345,7 +378,7 @@ namespace Haley.Services {
         }
 
         public async Task<IOSSResponse> CreateDirectory(IOSSRead input, string rawname) {
-            IOSSResponse result = new ObjectCreateResponse() {
+            IOSSResponse result = new OSSResponse() {
                 Status = false,
                 RawName = rawname
             };

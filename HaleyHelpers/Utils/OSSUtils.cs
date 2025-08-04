@@ -2,13 +2,17 @@
 using Haley.Enums;
 using Haley.Models;
 using System;
+using System.CodeDom;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel.Design;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Schema;
 
 namespace Haley.Utils
 {
@@ -23,7 +27,7 @@ namespace Haley.Utils
             return input;
         }
 
-        public static (string name, string path, Guid guid) GenerateControlledPath(OSSName nObj, OSSParseMode pmode = OSSParseMode.Parse, int split_length = 2, int depth = 0, Func<string,long> idGenerator = null,bool throwExceptions = false) {
+        public static (string name, string path, Guid guid) GenerateFileSystemSavePath(OSSName nObj, OSSParseMode pmode = OSSParseMode.Parse, int split_length = 2, int depth = 0, string suffix = null, Func<string,long> idGenerator = null,bool throwExceptions = false) {
             if (nObj == null || !nObj.Validate().Status) return (string.Empty, string.Empty, Guid.Empty);
             string result = string.Empty;
             var dbname = nObj.Name ?? nObj.DisplayName.ToDBName();
@@ -34,36 +38,51 @@ namespace Haley.Utils
             Guid objGuid = Guid.Empty;
             switch (nObj.ControlMode) {
                 case OSSControlMode.None:
-                    nObj.ControlledName = dbname;
+                    nObj.SaveAsName = dbname;
                 break;
                 case OSSControlMode.Number:
                 if (dbname.TryPopulateControlledID(out objId, pmode, idGenerator, throwExceptions)) {
-                    nObj.ControlledName = objId.ToString();
+                    nObj.SaveAsName = objId.ToString();
                 }
                 break;
                 case OSSControlMode.Guid:
                  if (dbname.TryPopulateControlledGUID(out objGuid, pmode, throwExceptions)) {
-                    nObj.ControlledName = objGuid.ToString("N");
+                    nObj.SaveAsName = objGuid.ToString("N");
                 }
                 break;
                 case OSSControlMode.Both:
                 //In case of both, the problem is, we need to first ensure, we are able to parse them.. and then only go ahead with generating.
                 //Focus on parsing first and then if doesn't work, hten jump to generate. Even in that case we need to see through thenend.
                 if (dbname.TryPopulateControlledID(out objId, OSSParseMode.Parse, idGenerator, false)) {
-                    nObj.ControlledName = objId.ToString();
+                    nObj.SaveAsName = objId.ToString();
                 } else if(dbname.TryPopulateControlledGUID(out objGuid, OSSParseMode.Parse, false)){
-                    nObj.ControlledName = objGuid.ToString("N");
+                    nObj.SaveAsName = objGuid.ToString("N");
                 } else if (dbname.TryPopulateControlledID(out objId, pmode, idGenerator, false)) {
                     //Try with original parsing mode, ,may be we are asked to generte. We dont' know;
-                    nObj.ControlledName = objId.ToString();
+                    nObj.SaveAsName = objId.ToString();
                 } else if (dbname.TryPopulateControlledGUID(out objGuid, pmode, throwExceptions)) {
-                    nObj.ControlledName = objGuid.ToString("N");
+                    nObj.SaveAsName = objGuid.ToString("N");
                 }
                 break;
             }
+            if (nObj.ControlMode != OSSControlMode.None) {
+                //Populate methods would have removed the Extensions. We add them back.
+                var extension = Path.GetExtension(dbname);
 
-            result = PreparePath(nObj.ControlledName, depth, split_length, nObj.ControlMode);
-            return (nObj.ControlledName, result, hashGuid);
+                //Add Suffix first
+                if (!string.IsNullOrWhiteSpace(suffix)) {
+                    nObj.SaveAsName += $@"_{suffix}";
+                }
+
+                //Add extension if exists.
+                if (!string.IsNullOrWhiteSpace(extension)) {
+                    nObj.SaveAsName += $@".{extension}";
+                }
+            }
+                result = PreparePath(nObj.SaveAsName, depth, split_length, nObj.ControlMode);
+
+            //We add suffix for all controlled paths.
+            return (nObj.SaveAsName, result, hashGuid);
         }
 
         public static string PreparePath(string input, int depth =0, int split_length = 2, OSSControlMode control_mode = OSSControlMode.None) {
@@ -97,6 +116,38 @@ namespace Haley.Utils
             }
 
             return false;
+        }
+
+        public static async Task<bool> TryCopyFileAsync(string sourcePath, string targetPath, int maxRetries = 5, int delayMilliseconds = 500, bool overwrite = true) {
+            for (int attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    File.Copy(sourcePath, targetPath, overwrite); // Overwrite = true
+                    return true; // Success
+                } catch (Exception) {
+                    await Task.Delay(delayMilliseconds);
+                }
+            }
+            return false;
+        }
+
+        public static bool PopulateVersionedPath(string dir_path,string file_basename, out string versionedPath) {
+            file_basename = Path.GetFileName(file_basename);
+            versionedPath = string.Empty;
+            string pattern = $@"^{Regex.Escape(file_basename)}.##v(\d+)##$";
+            var regex = new Regex(pattern,RegexOptions.IgnoreCase); //Case insensitive
+            var files = Directory.GetFiles(dir_path, $"{file_basename}*");
+            if (files.Length == 0 ) return false; //save as is. // There is no such file
+            int maxversion = 0;
+            foreach (var file in files) {
+                var fname = Path.GetFileName(file);
+                var match = regex.Match(fname);
+                if (match.Success && int.TryParse(match.Groups[1].Value,out int version)) {
+                    maxversion = Math.Max(maxversion, version); 
+                }
+            }
+            maxversion++; //Get the version number.
+            versionedPath =  Path.Combine(dir_path, $@"{file_basename}.##v{maxversion}##");
+            return true;
         }
 
         public static async Task<bool> TryDeleteDirectory(this string path, int maxRetries = 5, int delayMs = 500) {
@@ -156,7 +207,7 @@ namespace Haley.Utils
         }
 
         public static string BuildStoragePath(this IOSSRead input, string basePath, bool allowRootAccess = false, bool readonlyMode = false) {
-            if (input == null || !(input is ObjectReadRequest req)) throw new ArgumentNullException($@"{nameof(IOSSRead)} cannot be null. It has to be of type {nameof(ObjectReadRequest)}");
+            if (input == null || !(input is OSSReadRequest req)) throw new ArgumentNullException($@"{nameof(IOSSRead)} cannot be null. It has to be of type {nameof(OSSReadRequest)}");
 
             if (basePath.Contains("..")) throw new ArgumentOutOfRangeException("The base path contains invalid segments. Parent directory access is not allowed. Please fix");
             if (!Directory.Exists(basePath)) throw new DirectoryNotFoundException("Base directory not found. Please ensure it is present");

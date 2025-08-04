@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using System.Xml;
 
 namespace Haley.Models {
-    public class ObjectWriteRequest : ObjectReadRequest, IOSSWrite {
+    public class OSSWriteRequest : OSSReadRequest, IOSSWrite {
         public string FileOriginalName { get; set; } //actual file name.
        
         public OSSResolveMode ResolveMode { get; set; } = OSSResolveMode.ReturnError;
@@ -18,19 +18,19 @@ namespace Haley.Models {
         public string Id { get; set; }
         public Stream FileStream { get; set; }
 
-        public new ObjectWriteRequest SetClient(OSSName input) {
+        public new OSSWriteRequest SetClient(OSSName input) {
              base.SetClient(input);
             return this;
         }
 
-        public new ObjectWriteRequest SetModule(OSSName input) {
+        public new OSSWriteRequest SetModule(OSSName input) {
             base.SetModule(input);
             return this;
         }
-        public ObjectWriteRequest() { }
+        public OSSWriteRequest() { }
 
         public virtual object Clone() {
-            var cloned = new ObjectWriteRequest();
+            var cloned = new OSSWriteRequest();
             //use map
             this.MapProperties(cloned);
             return cloned ;

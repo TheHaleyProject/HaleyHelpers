@@ -142,12 +142,16 @@ class Testing {
             await dss.RegisterModule("lingam","bcde");
             await dss.RegisterModule(new OSSName("test",OSSControlMode.Guid),new OSSName("olacabs",OSSControlMode.Guid));
             await dss.RegisterModule(new OSSName("test12"),new OSSName("olacabs",OSSControlMode.Guid));
-           
 
-            var status = await dss.Upload(new ObjectWriteRequest() {
-                FileStream = new FileStream(@"C:\Users\tmp168\Downloads\PNCL Data Compliance - Frame 1(4).jpg",FileMode.Open), ResolveMode = OSSResolveMode.Revise
-            });
-            Console.WriteLine($@"Status : {status.Status}, Message : {status.Message}");
+
+            for (int i = 0; i < 4; i++) {
+                var status = await dss.Upload(new OSSWriteRequest() {
+                    FileStream = new FileStream(@"C:\Users\tmp168\Downloads\PNCL Data Compliance - Frame 1(4).jpg", FileMode.Open, FileAccess.Read),
+                    ResolveMode = OSSResolveMode.Revise,
+                    TargetName = @"C:\Users\tmp168\Downloads\response_1751620873480.json",
+                });
+                Console.WriteLine($@"Status : {status.Status}, Message : {status.Message}");
+            }
             Console.ReadKey();
 
         } catch (Exception ex) {
