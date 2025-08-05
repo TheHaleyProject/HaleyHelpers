@@ -1,9 +1,11 @@
-﻿using System;
+﻿using Haley.Abstractions;
+using Haley.Utils;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace Haley.Models {
-    public class OSSInfo  {
+    public class OSSInfo : IOSSInfo {
         public const string DEFAULTNAME = "default";
         public string Name { get; private set; }
         private string _displayName;
@@ -13,7 +15,7 @@ namespace Haley.Models {
             set {
                 _displayName = value ?? DEFAULTNAME;
                 if (!string.IsNullOrWhiteSpace(_displayName)) {
-                    Name = _displayName.Trim().ToLower().Replace(" ", "_");
+                    Name = _displayName.ToDBName();
                 }
             }
         }

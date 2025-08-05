@@ -165,7 +165,7 @@
 			<column name="name" type="VARCHAR" length="100" mandatory="y" />
 			<column name="display_name" type="VARCHAR" length="100" mandatory="y" />
 			<column name="guid" prior="hash_guid" type="VARCHAR" length="48" mandatory="y" >
-				<defo><![CDATA[uuid()]]></defo>
+				<defo><![CDATA['uuid()']]></defo>
 				<comment><![CDATA[Guid should be based on the hash of the name because it should be recreatable at the application level.
 
 The hash should be recreatable from the application also. So, take the client name and then do sha256 to generate the hash. Idea is when the DB is down, still the folder should be reachable.
@@ -272,10 +272,10 @@ We would have anyhow created the guid based on the provided name. If the client 
 2- Parse or generate]]></comment>
 			</column>
 			<column name="created" type="TIMESTAMP" mandatory="y" >
-				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
+				<defo><![CDATA[current_timestamp()]]></defo>
 			</column>
 			<column name="modified" type="TIMESTAMP" mandatory="y" >
-				<defo><![CDATA[CURRENT_TIMESTAMP]]></defo>
+				<defo><![CDATA[current_timestamp()]]></defo>
 				<column_options><![CDATA[ON UPDATE CURRENT_TIMESTAMP]]></column_options>
 			</column>
 			<index name="pk_workspace" unique="PRIMARY_KEY" >
@@ -289,10 +289,10 @@ We would have anyhow created the guid based on the provided name. If the client 
 				<column name="guid" />
 			</index>
 			<constraint name="cns_workspace" >
-				<string><![CDATA[control_mode >= 0 and control_mode <= 3]]></string>
+				<string><![CDATA[`control_mode` >= 0 and `control_mode` <= 3]]></string>
 			</constraint>
 			<constraint name="cns_workspace_0" >
-				<string><![CDATA[parse_mode >=0 and parse_mode <=2]]></string>
+				<string><![CDATA[`parse_mode` >= 0 and `parse_mode` <= 2]]></string>
 			</constraint>
 			<fk name="fk_workspace_module" to_schema="dss_core" to_table="module" >
 				<fk_column name="parent" pk="id" />

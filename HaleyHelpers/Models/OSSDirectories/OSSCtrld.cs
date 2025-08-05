@@ -7,7 +7,7 @@ using System.Text;
 using System.Xml.Linq;
 
 namespace Haley.Models {
-    public class OSSCtrld :OSSInfo {
+    public class OSSCtrld :OSSInfo , IOSSControlled{
         public string SaveAsName { get; set; } //Should be the controlled name or a name compatible for the database 
         public OSSControlMode ControlMode { get; set; } //Parsing or create mode is defined at application level?
         public OSSParseMode ParseMode { get; set; } //If false, we fall back to parsing.

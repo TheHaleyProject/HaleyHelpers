@@ -1,10 +1,11 @@
-﻿using Haley.Enums;
+﻿using Haley.Abstractions;
+using Haley.Enums;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace Haley.Models {
-    public class DSSConfig {
+    public class DSSConfig : IDSSConfig{
         //All suffix are applicable only when dealing with controlled names.
         public string SuffixClient { get; set; } = "c";
         public string SuffixModule { get; set; } = "m";

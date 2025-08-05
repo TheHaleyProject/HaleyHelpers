@@ -1,10 +1,11 @@
-﻿using Haley.Enums;
+﻿using Haley.Abstractions;
+using Haley.Enums;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace Haley.Models {
-    public class OSSClient : OSSDirectory {
+    public class OSSClient : OSSDirectory, IOSSClient {
         public string SigningKey { get; set; }
         public string EncryptKey { get; set; }
         public string PasswordHash { get; set; }
