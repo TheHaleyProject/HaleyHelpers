@@ -32,10 +32,10 @@ namespace Haley.Utils {
             if (!isValidated) await Validate();
         }
 
-        ConcurrentDictionary<string, OSSModuleInfo> _idxModules = new ConcurrentDictionary<string, OSSModuleInfo>();
-        ConcurrentDictionary<string, OSSClientInfo> _idxClients = new ConcurrentDictionary<string, OSSClientInfo>();
+        ConcurrentDictionary<string, OSSModule> _idxModules = new ConcurrentDictionary<string, OSSModule>();
+        ConcurrentDictionary<string, OSSClient> _idxClients = new ConcurrentDictionary<string, OSSClient>();
        
-        public async Task<IFeedback> RegisterClient(OSSClientInfo info) {
+        public async Task<IFeedback> RegisterClient(OSSClient info) {
             if (info == null) throw new ArgumentNullException("Input client directory info cannot be null");
             info.Assert();
             //We generate the hash_guid ourselves for the client.
@@ -54,13 +54,13 @@ namespace Haley.Utils {
                 }
             } else {
                 
-                if (info.HashGuid == null) {
+                if (info.Guid == null) {
                     info.DisplayName.TryPopulateControlledGUID(out var hashGuid, OSSParseMode.ParseOrGenerate, false); //Not error thrown.
-                    info.HashGuid = hashGuid.ToString("N"); //No Context added. Check this one later.
+                    info.Guid = hashGuid.ToString("N"); //No Context added. Check this one later.
                 }
                 using (thandler.Begin()) {
                     //Register client
-                    await _agw.NonQuery((new AdapterArgs(_key) { Query = CLIENT.UPSERT }).ForTransaction(thandler), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.HashGuid), (PATH, info.Path));
+                    await _agw.NonQuery((new AdapterArgs(_key) { Query = CLIENT.UPSERT }).ForTransaction(thandler), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.Guid), (PATH, info.Path));
                     result = await _agw.Scalar((new AdapterArgs(_key) { Query = CLIENT.EXISTS }).ForTransaction(thandler), (NAME, info.Name));
                     if (result != null && result is int clientId) {
                         //await _agw.Read(new AdapterArgs(_key) { Query = $@"select * from client as c where c.id = {clientId};" });
@@ -77,7 +77,7 @@ namespace Haley.Utils {
             }
             return new Feedback(false, "Unable to index the client");
         }
-        public async Task<IFeedback> RegisterModule(OSSModuleInfo info) {
+        public async Task<IFeedback> RegisterModule(OSSModule info) {
             if (info == null) throw new ArgumentNullException("Input Module directory info cannot be null");
             info.Assert();
             //We generate the hash_guid ourselves for the client.
@@ -91,12 +91,12 @@ namespace Haley.Utils {
                 //Module exists. .just update it.
                 await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPDATE }, (DNAME, info.DisplayName), (PATH, info.Path),(CONTROLMODE,(int)info.ControlMode),(PARSEMODE,(int)info.ParseMode), (ID, mId));
             } else {
-                if (info.HashGuid == null) {
+                if (info.Guid == null) {
                     info.DisplayName.TryPopulateControlledGUID(out var hashGuid, OSSParseMode.ParseOrGenerate, false); //Not error thrown.
-                    info.HashGuid = hashGuid.ToString("N"); //No Context added. Check this one later.
+                    info.Guid = hashGuid.ToString("N"); //No Context added. Check this one later.
                 }
 
-                await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPSERT }, (PARENT, clientId), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.HashGuid), (PATH, info.Path),(CONTROLMODE, (int)info.ControlMode), (PARSEMODE, (int)info.ParseMode));
+                await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPSERT }, (PARENT, clientId), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.Guid), (PATH, info.Path),(CONTROLMODE, (int)info.ControlMode), (PARSEMODE, (int)info.ParseMode));
             }
 
             mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
@@ -134,11 +134,11 @@ namespace Haley.Utils {
             }
            
         }
-        async Task ValidateClient(OSSClientInfo info) {
+        async Task ValidateClient(OSSClient info) {
             if (_idxClients.ContainsKey(info.Name) && _idxClients[info.Name] != null) return; //WHAT IF KEY IS PRESENT BUT IN ACTUAL THE DATABASE WAS DELETED MANUALLY? SHOULDN'T WE CHECK THAT? OR DIRECTLY THROW EXCEPTION AT RUN TIME? OR THAT THE DETAILS ARE NOT UPDATED?
             //if not, we need to ensure that this client schema is created and then add it internally.
-            if (string.IsNullOrWhiteSpace(info.HashGuid)) info.HashGuid = info.DisplayName.CreateGUID(HashMethod.Sha256).ToString();
-            if (string.IsNullOrWhiteSpace(info.DatabaseName)) info.DatabaseName = $@"{DB_CLIENT_NAME_PREFIX}{info.HashGuid.ToString().Replace("-", "")}";
+            if (string.IsNullOrWhiteSpace(info.Guid)) info.Guid = info.DisplayName.CreateGUID(HashMethod.Sha256).ToString();
+            if (string.IsNullOrWhiteSpace(info.DatabaseName)) info.DatabaseName = $@"{DB_CLIENT_NAME_PREFIX}{info.Guid.ToString().Replace("-", "")}";
             var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), DB_SQL_FILE_LOCATION, DB_CLIENT_SQL_FILE);
             if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql for client file is not found. Please check : {DB_CLIENT_SQL_FILE}");
             //if the file exists, then run this file against the adapter gateway but ignore the db name.
@@ -157,17 +157,17 @@ namespace Haley.Utils {
             name.AssertValue(true, "Client Name");
             var clientName = name.ToDBName();
             
-            await ValidateClient(new OSSClientInfo() { SaveAsName = clientName,DisplayName = name});
+            await ValidateClient(new OSSClient() { SaveAsName = clientName,DisplayName = name});
         }
 
-        public OSSClientInfo GetClientInfo(string name) {
+        public OSSClient GetClientInfo(string name) {
             if(!name.AssertValue(false))return null;
             var dbname = name.ToDBName();
             if (_idxClients.ContainsKey(dbname)) return _idxClients[dbname];
             return null;
         }
 
-        public OSSModuleInfo GetModuleInfo(string name, string client_name) {
+        public OSSModule GetModuleInfo(string name, string client_name) {
             if (!TryCreateModuleKey(name, client_name, out var moduleKey)) return null;
             if (_idxModules.ContainsKey(moduleKey)) return _idxModules[moduleKey];
             return null;
@@ -183,10 +183,10 @@ namespace Haley.Utils {
 
         public bool TryAddInfo(OSSDirectory dirInfo) {
             if (dirInfo == null || !dirInfo.Name.AssertValue(false)) return false;
-            if (dirInfo is OSSClientInfo clientInfo) {
+            if (dirInfo is OSSClient clientInfo) {
                 if (_idxClients.ContainsKey(clientInfo.Name)) return false;
                 _idxClients.TryAdd(dirInfo.Name, clientInfo);
-            } else if (dirInfo is OSSModuleInfo modInfo) {
+            } else if (dirInfo is OSSModule modInfo) {
                 if (!TryCreateModuleKey(modInfo.Name, modInfo.ClientName, out var mKey)) return false;
                 if (_idxModules.ContainsKey(mKey)) return false; 
                 _idxModules.TryAdd(mKey, modInfo);

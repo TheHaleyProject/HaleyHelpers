@@ -31,7 +31,7 @@ namespace Haley.Utils
             return input;
         }
 
-        public static (string name, string path, Guid guid) GenerateFileSystemSavePath(OSSName nObj,OSSParseMode? parse_overwrite = null, Func<bool,(int length,int depth)> splitProvider = null, string suffix = null, Func<string,long> idGenerator = null,bool throwExceptions = false) {
+        public static (string name, string path, Guid guid) GenerateFileSystemSavePath(OSSCtrld nObj,OSSParseMode? parse_overwrite = null, Func<bool,(int length,int depth)> splitProvider = null, string suffix = null, Func<string,long> idGenerator = null,bool throwExceptions = false) {
             if (nObj == null || !nObj.Validate().Status) return (string.Empty, string.Empty, Guid.Empty);
             string result = string.Empty;
             var dbname = nObj.Name ?? nObj.DisplayName.ToDBName();
@@ -69,21 +69,25 @@ namespace Haley.Utils
                 }
                 break;
             }
+            
+            result = PreparePath(nObj.SaveAsName, splitProvider, nObj.ControlMode);
+            
+            //If extension is missing, check for extension. (only for controlled paths, extension would be missing)
             if (nObj.ControlMode != OSSControlMode.None) {
+                
+                if (!string.IsNullOrWhiteSpace(suffix)) {
+                    //If we are dealing with number and also inside some kind of control mode, add suffix.
+                    result += $@"{suffix}"; //Never get _ as suffix.
+                }
+
                 //Populate methods would have removed the Extensions. We add them back.
                 var extension = Path.GetExtension(dbname);
 
-                //Add Suffix first
-                if (!string.IsNullOrWhiteSpace(suffix)) {
-                    nObj.SaveAsName += $@"_{suffix}";
-                }
-
                 //Add extension if exists.
                 if (!string.IsNullOrWhiteSpace(extension)) {
-                    nObj.SaveAsName += $@".{extension}";
+                    result += $@"{extension}";
                 }
             }
-                result = PreparePath(nObj.SaveAsName, splitProvider, nObj.ControlMode);
 
             //We add suffix for all controlled paths.
             return (nObj.SaveAsName, result, hashGuid);

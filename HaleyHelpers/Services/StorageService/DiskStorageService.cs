@@ -39,8 +39,8 @@ namespace Haley.Services {
         }
         async Task Initialize(bool force = false) {
             if (_isInitialized && !force) return;
-            await RegisterClient(new OSSName()); //Registers defaul client
-            await RegisterModule(new OSSName(), new OSSName()); //Registers default module
+            await RegisterClient(new OSSCtrld()); //Registers defaul client
+            await RegisterModule(new OSSCtrld(), new OSSCtrld()); //Registers default module
             _isInitialized = true;
         }
         public string BasePath { get; }
@@ -48,15 +48,11 @@ namespace Haley.Services {
         public bool WriteMode { get; set; }
         IDSSIndexing Indexer;
 
-        public string GetBasePath() {
-            return BasePath;
-        }
-
+      
         public DiskStorageService SetWriteMode(bool mode) {
             WriteMode = mode;
             return this;
         }
-
         public IDiskStorageService SetIndexer(IDSSIndexing service) {
             Indexer = service;
             if (Indexer != null) {
@@ -69,17 +65,16 @@ namespace Haley.Services {
         }
 
         #region Client & Module Management 
-        public (string name, string path, Guid guid) GenerateBasePath(OSSName input, string suffix) {
+        public (string name, string path, Guid guid) GenerateBasePath(OSSCtrld input, string suffix) {
             return OSSUtils.GenerateFileSystemSavePath(input, OSSParseMode.ParseOrGenerate, (n) => { return (2, 5); }, suffix: suffix, throwExceptions: false);
         }
         public Task<IFeedback> RegisterClient(string name, string password = null) {
-            return RegisterClient(new OSSName(name));
+            return RegisterClient(new OSSCtrld(name));
         }
-
         public Task<IFeedback> RegisterModule(string name, string client_name = null) {
-            return RegisterModule(new OSSName(name), new OSSName(client_name));
+            return RegisterModule(new OSSCtrld(name), new OSSCtrld(client_name));
         }
-        public async Task<IFeedback> RegisterClient(OSSName input, string password = null) {
+        public async Task<IFeedback> RegisterClient(OSSCtrld input, string password = null) {
             //Password will be stored in the .dss.meta file
             if (input == null) return new Feedback(false, "Name cannot be empty");
             var nameValidation = input.Validate();
@@ -101,7 +96,7 @@ namespace Haley.Services {
             var pwdHash = HashUtils.ComputeHash(password, HashMethod.Sha256);
             var result = new Feedback(true, $@"Client {input.DisplayName} is registered");
 
-            var clientInfo = input.MapProperties(new OSSClientInfo(pwdHash, signing, encrypt) { Path = cInput.path, HashGuid = cInput.guid.ToString("N") });
+            var clientInfo = input.MapProperties(new OSSClient(pwdHash, signing, encrypt) { Path = cInput.path, Guid = cInput.guid.ToString("N") });
             if (WriteMode) {
                 var metaFile = Path.Combine(path,CLIENTMETAFILE);
                 File.WriteAllText(metaFile, clientInfo.ToJson());   // Over-Write the keys here.
@@ -114,7 +109,7 @@ namespace Haley.Services {
             result.Result = idxResult.Result;
             return result;
         }
-        public Task<IFeedback> RegisterModule(OSSName input, OSSName client_input, OSSControlMode content_control = OSSControlMode.None, OSSParseMode content_pmode = OSSParseMode.Parse) {
+        public Task<IFeedback> RegisterModule(OSSCtrld input, OSSCtrld client_input) {
             //AssertValues(true, (client_name,"client name"), (name,"module name")); //uses reflection and might carry performance penalty
             client_input.DisplayName.AssertValue(true, "Client Name");
             input.DisplayName.AssertValue(true, "Module Name");
@@ -122,7 +117,7 @@ namespace Haley.Services {
             var cInput = GenerateBasePath(client_input, Config.SuffixClient); //For client, we only prefer hash mode.
             return RegisterModule(input, client_input, Path.Combine(BasePath, cInput.path),content_control,content_pmode);
         }
-        async Task<IFeedback> RegisterModule(OSSName input, OSSName client_input,string client_path, OSSControlMode content_control = OSSControlMode.None, OSSParseMode content_pmode = OSSParseMode.Parse) {
+        async Task<IFeedback> RegisterModule(OSSCtrld input, OSSCtrld client_input,string client_path) {
             //CLIENT INFORMATION BASIC VALIDATION
             client_path.AssertValue(true, "Client Path");
             client_input.DisplayName.AssertValue(true, "Client Name");
@@ -142,7 +137,7 @@ namespace Haley.Services {
                 Directory.CreateDirectory(path); //Create the directory.
             }
 
-            var moduleInfo = input.MapProperties(new OSSModuleInfo(client_input.DisplayName) { Path = cInput.path, HashGuid = cInput.guid.ToString("N"),ContentControl = content_control, ContentParse = content_pmode });
+            var moduleInfo = input.MapProperties(new OSSModule(client_input.DisplayName) { Path = cInput.path, Guid = cInput.guid.ToString("N"),ContentControl = content_control, ContentParse = content_pmode });
             if (WriteMode) {
                 var metaFile = Path.Combine(path, MODULEMETAFILE);
                 File.WriteAllText(metaFile, moduleInfo.ToJson());
@@ -157,14 +152,29 @@ namespace Haley.Services {
             return result;
 
         }
+        public Task<IFeedback> RegisterModule(OSSCtrld input, OSSCtrld client_input) {
+            throw new NotImplementedException();
+        }
+
+        public Task<IFeedback> RegisterWorkSpace(string name, string client_name = "default", string module_name = "default") {
+            throw new NotImplementedException();
+        }
+
+        public Task<IFeedback> RegisterWorkSpace(string name, string client_name = "default", string module_name = "default", OSSControlMode content_control = OSSControlMode.None, OSSParseMode content_pmode = OSSParseMode.Parse) {
+            throw new NotImplementedException();
+        }
+
+        public Task<IFeedback> RegisterWorkSpace(OSSCtrld input, OSSCtrld client_input, OSSCtrld modul_input, OSSControlMode content_control = OSSControlMode.None, OSSParseMode content_pmode = OSSParseMode.Parse) {
+            throw new NotImplementedException();
+        }
         #endregion
 
-        string FetchBasePath(IOSSRead request) {
-            Initialize().Wait(); //To ensure base folders are created.
-            string result = BasePath;
-            List<string> paths = new List<string>();
-            paths.Add(BasePath);
-
+        #region Path Processing
+        public string GetStorageRoot() {
+            return BasePath;
+        }
+        void FetchClientPath(IOSSRead request, List<string> paths) {
+            if (paths == null) paths = new List<string>();
             if (request.Client != null) {
                 var info = Indexer?.GetClientInfo(request.Client.DisplayName);
                 if (info != null) {
@@ -177,7 +187,7 @@ namespace Haley.Services {
                         var metafile = Path.Combine(BasePath, tuple.path, CLIENTMETAFILE);
                         if (File.Exists(metafile)) {
                             //File exists , gives us the password, encrypt key and everything.. if not available already in the database cache.
-                            var cInfo = File.ReadAllText(metafile).FromJson<OSSClientInfo>();
+                            var cInfo = File.ReadAllText(metafile).FromJson<OSSClient>();
                             if (cInfo != null) {
                                 Indexer?.TryAddInfo(cInfo);
                             }
@@ -186,9 +196,11 @@ namespace Haley.Services {
                     }
                 }
             }
-
+        }
+        void FetchModulePath(IOSSRead request, List<string> paths) {
+            if (paths == null) paths = new List<string>();
             if (request.Module != null) {
-                var info = Indexer?.GetModuleInfo(request.Module.Name,request.Client.Name);
+                var info = Indexer?.GetModuleInfo(request.Module.Name, request.Client.Name);
                 if (info != null) {
                     if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
                 } else if (!string.IsNullOrWhiteSpace(request.Module.DisplayName)) {
@@ -199,7 +211,7 @@ namespace Haley.Services {
                         var metafile = Path.Combine(BasePath, tuple.path, MODULEMETAFILE);
                         if (File.Exists(metafile)) {
                             //File exists , gives us the password, encrypt key and everything.. if not available already in the database cache.
-                            var cInfo = File.ReadAllText(metafile).FromJson<OSSModuleInfo>();
+                            var cInfo = File.ReadAllText(metafile).FromJson<OSSModule>();
                             if (cInfo != null) {
                                 Indexer?.TryAddInfo(cInfo);
                             }
@@ -208,63 +220,83 @@ namespace Haley.Services {
                     }
                 }
             }
-            if (paths.Count > 0) result = Path.Combine(paths.ToArray());
+        }
+        string FetchBasePath(IOSSRead request) {
+            Initialize().Wait(); //To ensure base folders are created.
+            string result = BasePath;
+            List<string> paths = new List<string>();
+            paths.Add(BasePath);
+            FetchClientPath(request, paths);
+            FetchModulePath(request, paths);
 
+            if (paths.Count > 0) result = Path.Combine(paths.ToArray());
             if (!Directory.Exists(result)) throw new DirectoryNotFoundException("The base path doesn't exists.. Unable to build the base path from given input.");
             return result;
         }
-
-        #region Disk Storage Management 
-
-        public (int length, int depth) SplitProvider (bool isNumber) {
+        public (int length, int depth) SplitProvider(bool isNumber) {
             if (isNumber) return (Config.SplitLengthNumber, Config.DepthNumber);
             return (Config.SplitLengthHash, Config.DepthHash);
         }
+        public void EnsureStorageRoutes(IOSSRead input) {
+            //The last storage route should be in the format of a file
+            if (input.StorageRoutes.Count < 1 || !input.StorageRoutes.Last().IsFile) {
+                //We are trying to upload a file but the last storage route is not in the format of a file.
+                //We need to see if the filestream is present and take the name from there.
+                //Priority for the name comes from TargetName
+                string targetFileName = string.Empty;
+                string targetFilePath = string.Empty;
+                if (!string.IsNullOrWhiteSpace(input.TargetName)) {
+                    targetFileName = Path.GetFileName(input.TargetName);
+                } else if (input is IOSSWrite inputW) {
+                    if (!string.IsNullOrWhiteSpace(inputW.FileOriginalName)) {
+                        targetFileName = Path.GetFileName(inputW.FileOriginalName);
+                    } else if (inputW.FileStream != null && inputW.FileStream is FileStream fs) {
+                        targetFileName = Path.GetFileName(fs.Name);
+                    }
+                } else {
+                    throw new ArgumentNullException("For the given file no save name is specified.");
+                }
 
+                //Now, this targetFileName, may or may not be split based on what was defined in the module.
+                //Check the module info.
+                var mInfo = Indexer?.GetModuleInfo(input.Module.Name, input.Client.Name);
+                if (mInfo != null) {
+                    //TODO: USE THE INDEXER TO GET THE PATH FOR THIS SPECIFIC FILE WITH MODULE AND CLIENT NAME.
+                    //TODO: IF THE PATH IS OBTAINED, THEN JUST JOIN THE PATHS.
+                    targetFilePath = OSSUtils.GenerateFileSystemSavePath(new OSSCtrld(targetFileName, mInfo.ContentControl, mInfo.ContentParse), splitProvider: SplitProvider, suffix: Config.SuffixFile, throwExceptions: true).path;
+                } else {
+                    targetFilePath = targetFileName.ToDBName(); //Just lower it 
+                }
+                input.StorageRoutes.Add(new OSSRoute(targetFileName, targetFilePath, true, false));
+            }
+        }
+        public (string basePath,string targetPath) ProcessAndBuildStoragePath(IOSSRead input,bool ensureFileRoute = true, bool allowRootAccess = false, bool readonlyMode = false) {
+            var bpath = FetchBasePath(input);
+            if (ensureFileRoute) EnsureStorageRoutes(input);
+            var path = input?.BuildStoragePath(bpath,allowRootAccess,readonlyMode); //This will also ensure we are not trying to delete something 
+            return (bpath, path);
+        }
+        #endregion
+
+        #region Disk Storage Management 
         public async Task<IOSSResponse> Upload(IOSSWrite input) {
             OSSResponse result = new OSSResponse() {
                 Status = false,
                 RawName = input.FileOriginalName
             };
             try {
-                var bpath = FetchBasePath(input);
-
-                //The last storage route should be in the format of a file
-                if (input.StorageRoutes.Count < 1 || !input.StorageRoutes.Last().IsFile) {
-                    //We are trying to upload a file but the last storage route is not in the format of a file.
-                    //We need to see if the filestream is present and take the name from there.
-                    //Priority for the name comes from TargetName
-                    string targetFileName = string.Empty;
-                    string targetFilePath = string.Empty;
-                    if (!string.IsNullOrWhiteSpace(input.TargetName)) {
-                        targetFileName = Path.GetFileName(input.TargetName);
-                    } else if (!string.IsNullOrWhiteSpace(input.FileOriginalName)) {
-                        targetFileName = Path.GetFileName(input.FileOriginalName);
-                    }else if (input.FileStream != null && input.FileStream is FileStream fs) {
-                        targetFileName = Path.GetFileName(fs.Name);
-                    } else {
-                        throw new ArgumentNullException("For the given file no save name is specified.");
-                    }
-
-                    //Now, this targetFileName, may or may not be split based on what was defined in the module.
-                    //Check the module info.
-                    var mInfo = Indexer?.GetModuleInfo(input.Module.Name, input.Client.Name);
-                    if (mInfo != null) {
-                        targetFilePath = OSSUtils.GenerateFileSystemSavePath(new OSSName(targetFileName, mInfo.ContentControl, mInfo.ContentParse), splitProvider: SplitProvider,suffix: Config.SuffixFile,throwExceptions:true).path;
-                    } else {
-                        targetFilePath = targetFileName.ToDBName(); //Just lower it 
-                    }
-                        input.StorageRoutes.Add(new OSSRoute(targetFileName, targetFilePath, true, false));
+                if (!WriteMode) {
+                    result.Message = "Application is in Read-Only mode.";
+                    return result;
                 }
-
-                input?.BuildStoragePath(bpath); //This will also ensure we are not trying to delete something 
+                var gPaths = ProcessAndBuildStoragePath(input,ensureFileRoute:true);
                 if (string.IsNullOrWhiteSpace(input.TargetPath)) {
                     result.Message = "Unable to generate the final storage path. Please check inputs.";
                     return result;
                 }
 
                 //What if there is some extension and is missing??
-                if (string.IsNullOrWhiteSpace(Path.GetExtension(bpath))) {
+                if (string.IsNullOrWhiteSpace(Path.GetExtension(gPaths.basePath))) {
                     string exten = string.Empty;
                     //Extension is missing. Lets figure out if we have somewhere. 
                     //Check if target name has it or the origianl filename has it.
@@ -278,7 +310,7 @@ namespace Haley.Services {
                         }
                     } while (false); //One time event
                     if (!string.IsNullOrWhiteSpace(exten)) {
-                        bpath += $@".{exten}";
+                        gPaths.targetPath += $@"{exten}";
                     }
                 }
 
@@ -287,7 +319,7 @@ namespace Haley.Services {
                 if (input.FileStream == null) throw new ArgumentException($@"File stream is null. Nothing to save.");
                 input.FileStream.Position = 0; //Precaution
 
-                if (input.TargetPath == bpath) throw new ArgumentException($@"No file save name is processed.");
+                if (input.TargetPath == gPaths.basePath) throw new ArgumentException($@"No file save name is processed.");
 
                 if (!ShouldProceedFileUpload(result, input.TargetPath, input.ResolveMode)) return result;
 
@@ -325,10 +357,9 @@ namespace Haley.Services {
             }
             return result;
         }
-
         public Task<IOSSFileStreamResponse> Download(IOSSRead input, bool auto_search_extension = true) {
             IOSSFileStreamResponse result = new FileStreamResponse() { Status = false, Stream = Stream.Null };
-            var path = input?.BuildStoragePath(FetchBasePath(input)); //This will also ensure we are not trying to delete something 
+            var path = ProcessAndBuildStoragePath(input,ensureFileRoute: true,readonlyMode:true).targetPath;
             if (string.IsNullOrWhiteSpace(path)) return Task.FromResult(result);
 
             if (!File.Exists(path) && auto_search_extension) {
@@ -363,10 +394,14 @@ namespace Haley.Services {
             result.Stream = new FileStream(path, FileMode.Open, FileAccess.Read) as Stream;
             return Task.FromResult(result); //Stream is open here.
         }
-
         public async Task<IFeedback> Delete(IOSSRead input) {
             IFeedback feedback = new Feedback() { Status = false };
-            var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to create something 
+            if (!WriteMode) {
+                feedback.Message = "Application is in Read-Only mode.";
+                return feedback;
+            }
+            var path = ProcessAndBuildStoragePath(input, ensureFileRoute: true, readonlyMode:true).targetPath;
+
             if (string.IsNullOrWhiteSpace(path)) {
                 feedback.Message = "Unable to generate path from provided inputs.";
                 return feedback;
@@ -381,17 +416,14 @@ namespace Haley.Services {
             feedback.Message = feedback.Status ? "File deleted" : "Unable to delete the file. Check if it is in use by other process & try again.";
             return feedback;
         }
-
-        public IFeedback Exists(IOSSRead input) {
+        public IFeedback Exists(IOSSRead input, bool isFilePath = false) {
             var feedback = new Feedback() { Status = false };
-            var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to delete something 
+            var path = ProcessAndBuildStoragePath(input, ensureFileRoute: isFilePath, readonlyMode: true).targetPath;
             if (string.IsNullOrWhiteSpace(path)) {
                 feedback.Message = "Unable to generate path from provided inputs.";
                 return feedback;
             }
-            bool isFile = input.StorageRoutes?.Last().IsFile ?? false; //Why any of the flag?
-            //If last storageroute has a IsFile flag, then it means, we are trying to figure out a file existence.
-            if (isFile) {
+            if (isFilePath) {
                 feedback.Status = File.Exists(path);
             } else {
                 feedback.Status = Directory.Exists(path);
@@ -401,15 +433,14 @@ namespace Haley.Services {
         }
 
         public long GetSize(IOSSRead input) {
-            var path = input?.BuildStoragePath(FetchBasePath(input)); //This will also ensure we are not trying to delete something 
+            var path = ProcessAndBuildStoragePath(input,ensureFileRoute:true, readonlyMode: true).targetPath;
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return 0;
             return new FileInfo(path).Length;
         }
 
         public Task<IOSSDirResponse> GetDirectoryInfo(IOSSRead input) {
-            IOSSDirResponse result = new DirectoryInfoResponse() { Status = false};
-
-            var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode:true); //This will also ensure we are not trying to delete something 
+            IOSSDirResponse result = new OSSDirResponse() { Status = false};
+            var path = ProcessAndBuildStoragePath(input, ensureFileRoute: false, readonlyMode: true).targetPath;
             if (string.IsNullOrWhiteSpace(path)) {
                 result.Message = "Unable to generate path.";
                 return Task.FromResult(result);
@@ -434,7 +465,12 @@ namespace Haley.Services {
                 RawName = rawname
             };
             try {
-                var path = input?.BuildStoragePath(FetchBasePath(input));  //This will also ensure we are not trying to delete something 
+                if (!WriteMode) {
+                    result.Message = "Application is in Read-Only mode.";
+                    return result;
+                }
+                var path = ProcessAndBuildStoragePath(input, ensureFileRoute: false, readonlyMode: true).targetPath;
+
                 if (string.IsNullOrWhiteSpace(path)) {
                     result.Message = $@"Unable to generate the path. Please check inputs.";
                     return result;
@@ -461,7 +497,11 @@ namespace Haley.Services {
 
         public async  Task<IFeedback> DeleteDirectory(IOSSRead input, bool recursive) {
             IFeedback feedback = new Feedback() { Status = false };
-            var path = input?.BuildStoragePath(FetchBasePath(input), readonlyMode: true);
+            if (!WriteMode) {
+                feedback.Message = "Application is in Read-Only mode.";
+                return feedback;
+            }
+            var path = ProcessAndBuildStoragePath(input, readonlyMode: true).targetPath;
             if (string.IsNullOrWhiteSpace(path)) {
                 feedback.Message = "Unable to generate path from provided inputs.";
                 return feedback;
@@ -537,8 +577,6 @@ namespace Haley.Services {
             result.Message = "No default implementation available. All requests authorized.";
             return Task.FromResult(result);
         }
-
-      
         #endregion
     }
 }

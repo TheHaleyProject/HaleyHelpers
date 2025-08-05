@@ -137,23 +137,30 @@ class Testing {
         try {
             var _agw = new AdapterGateway() { ThrowCRUDExceptions = true }; //Only for testing.
             var dss = new DiskStorageService(_agw,"mss_db");
-            await dss.RegisterClient(new OSSName("bcde"));
-            await dss.RegisterClient(new OSSName("olacabs",OSSControlMode.Guid));
+            await dss.RegisterClient(new OSSCtrld("bcde"));
+            await dss.RegisterClient(new OSSCtrld("olacabs",OSSControlMode.Guid));
             await dss.RegisterModule("lingam","bcde");
-            await dss.RegisterModule(new OSSName("test",OSSControlMode.Guid),new OSSName("olacabs",OSSControlMode.Guid));
-            await dss.RegisterModule(new OSSName("test12"),new OSSName("olacabs",OSSControlMode.Guid));
+            await dss.RegisterModule(new OSSCtrld("test",OSSControlMode.Guid),new OSSCtrld("olacabs",OSSControlMode.Guid));
+            await dss.RegisterModule(new OSSCtrld("test12"),new OSSCtrld("olacabs",OSSControlMode.Guid));
+            await dss.RegisterModule(new OSSCtrld("contest", OSSControlMode.Guid),new OSSCtrld("bcde"),OSSControlMode.Both,OSSParseMode.ParseOrGenerate);
 
 
-            for (int i = 0; i < 4; i++) {
-                var status = await dss.Upload(new OSSWriteRequest() {
-                    FileStream = new FileStream(@"C:\Users\tmp168\Downloads\PNCL Data Compliance - Frame 1(4).jpg", FileMode.Open, FileAccess.Read),
-                    ResolveMode = OSSResolveMode.Revise,
-                    TargetName = @"C:\Users\tmp168\Downloads\response_1751620873480.json",
-                    Client = new OSSName("olacabs",OSSControlMode.Guid),
-                    Module = new OSSName("test",OSSControlMode.Guid)
-                });
-                Console.WriteLine($@"Status : {status.Status}, Message : {status.Message}");
-            }
+            //for (int i = 0; i < 4; i++) {
+            //    var status = await dss.Upload(new OSSWriteRequest() {
+            //        FileStream = new FileStream(@"C:\Users\tmp168\Downloads\PNCL Data Compliance - Frame 1(4).jpg", FileMode.Open, FileAccess.Read),
+            //        ResolveMode = OSSResolveMode.Revise,
+            //        TargetName = @"C:\Users\tmp168\Downloads\response_1751620873480.jpg",
+            //        Client = new OSSName("bcde"),
+            //        Module = new OSSName("contest", OSSControlMode.Guid)
+            //    });
+            //    Console.WriteLine($@"Status : {status.Status}, Message : {status.Message}");
+            //}
+
+            //var dld = await dss.Download(new OSSReadRequest() {
+            //    Client = new OSSName("bcde"),
+            //    Module = new OSSName("contest",OSSControlMode.Guid),
+            //    TargetName = "response_1751620873480.jpg"
+            //});
             Console.ReadKey();
 
         } catch (Exception ex) {
