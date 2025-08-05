@@ -14,14 +14,19 @@ using Microsoft.Identity.Client;
 using static Haley.Utils.ObjectValidation;
 using Microsoft.Extensions.Logging;
 using System.Runtime.InteropServices.ComTypes;
+using System.Diagnostics.Contracts;
 
 namespace Haley.Services {
     public class DiskStorageService : IDiskStorageService {
         bool _isInitialized = false;
+        const string CLIENTMETAFILE = ".client.dss.meta";
+        const string MODULEMETAFILE = ".module.dss.meta";
         public DSSConfig Config { get; set; } = new DSSConfig();
-        public DiskStorageService(bool write_mode = true):this(null, null,write_mode) { }
-        public DiskStorageService(string basePath, bool write_mode = true) : this(basePath, null,write_mode) { }
-        public DiskStorageService(string basePath, IDSSIndexing indexer, bool write_mode) {
+        public DiskStorageService(bool write_mode = true):this(null,null, write_mode) { }
+        public DiskStorageService(string basePath, bool write_mode = true) : this(basePath, write_mode,null) { }
+        public DiskStorageService(IAdapterGateway agw, string adapter_key, bool write_mode = true) : this(null, write_mode, new MariaDBIndexing(agw, adapter_key)) { }
+        public DiskStorageService(IAdapterGateway agw, string adapter_key, string basePath, bool write_mode =true) : this(basePath, write_mode, new MariaDBIndexing(agw,adapter_key)) { }
+        public DiskStorageService(string basePath, bool write_mode, IDSSIndexing indexer) {
             BasePath = basePath;
             WriteMode = write_mode;
             //This is supposedly the directory where all storage goes into.
@@ -57,13 +62,15 @@ namespace Haley.Services {
             if (Indexer != null) {
                 EnableIndexing = true;
                 Initialize(true).Wait(); //Once we set the indexer we also try to initialize.
+            } else {
+                EnableIndexing = false; //Disable the indexing if the indexer doesn't work
             }
             return this;
         }
 
         #region Client & Module Management 
         public (string name, string path, Guid guid) GenerateBasePath(OSSName input, string suffix) {
-            return OSSUtils.GenerateFileSystemSavePath(input, OSSParseMode.ParseOrGenerate, 2, 5, suffix: suffix, throwExceptions: false);
+            return OSSUtils.GenerateFileSystemSavePath(input, OSSParseMode.ParseOrGenerate, (n) => { return (2, 5); }, suffix: suffix, throwExceptions: false);
         }
         public Task<IFeedback> RegisterClient(string name, string password = null) {
             return RegisterClient(new OSSName(name));
@@ -79,7 +86,7 @@ namespace Haley.Services {
             if (!nameValidation.Status) return nameValidation;
             if (input.ControlMode != OSSControlMode.None) input.ControlMode = OSSControlMode.Guid; //Either we allow as is, or we go with GUID. no numbers allowed.
             if (string.IsNullOrWhiteSpace(password)) password = "admin";
-            var cInput = GenerateBasePath(input,Config.ClientSuffix); //For client, we only prefer hash mode.
+            var cInput = GenerateBasePath(input,Config.SuffixClient); //For client, we only prefer hash mode.
             var path = Path.Combine(BasePath, cInput.path);
 
             //Thins is we are not allowing any path to be provided by user. Only the name is allowed.
@@ -96,7 +103,7 @@ namespace Haley.Services {
 
             var clientInfo = input.MapProperties(new OSSClientInfo(pwdHash, signing, encrypt) { Path = cInput.path, HashGuid = cInput.guid.ToString("N") });
             if (WriteMode) {
-                var metaFile = Path.Combine(path, ".client.dss.meta");
+                var metaFile = Path.Combine(path,CLIENTMETAFILE);
                 File.WriteAllText(metaFile, clientInfo.ToJson());   // Over-Write the keys here.
             }
 
@@ -112,7 +119,7 @@ namespace Haley.Services {
             client_input.DisplayName.AssertValue(true, "Client Name");
             input.DisplayName.AssertValue(true, "Module Name");
 
-            var cInput = GenerateBasePath(client_input, Config.ClientSuffix); //For client, we only prefer hash mode.
+            var cInput = GenerateBasePath(client_input, Config.SuffixClient); //For client, we only prefer hash mode.
             return RegisterModule(input, client_input, Path.Combine(BasePath, cInput.path),content_control,content_pmode);
         }
         async Task<IFeedback> RegisterModule(OSSName input, OSSName client_input,string client_path, OSSControlMode content_control = OSSControlMode.None, OSSParseMode content_pmode = OSSParseMode.Parse) {
@@ -127,7 +134,7 @@ namespace Haley.Services {
             var nameValidation = input.Validate();
             if (!nameValidation.Status) return nameValidation;
 
-            var cInput = GenerateBasePath(input,Config.ModuleSuffix); //For client, we only prefer hash mode.
+            var cInput = GenerateBasePath(input,Config.SuffixModule); //For client, we only prefer hash mode.
             var path = Path.Combine(client_path, cInput.path); //Including Client Path
 
             //Create these folders and then register them.
@@ -137,7 +144,7 @@ namespace Haley.Services {
 
             var moduleInfo = input.MapProperties(new OSSModuleInfo(client_input.DisplayName) { Path = cInput.path, HashGuid = cInput.guid.ToString("N"),ContentControl = content_control, ContentParse = content_pmode });
             if (WriteMode) {
-                var metaFile = Path.Combine(path, ".module.dss.meta");
+                var metaFile = Path.Combine(path, MODULEMETAFILE);
                 File.WriteAllText(metaFile, moduleInfo.ToJson());
             }
 
@@ -159,21 +166,46 @@ namespace Haley.Services {
             paths.Add(BasePath);
 
             if (request.Client != null) {
-                var info = Indexer.GetClientInfo(request.Client.DisplayName);
+                var info = Indexer?.GetClientInfo(request.Client.DisplayName);
                 if (info != null) {
                     if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
                 } else if (!string.IsNullOrWhiteSpace(request.Client.DisplayName)) {
-                    paths.Add(GenerateBasePath(request.Client,Config.ClientSuffix).path);
-                    //Now add this to the client info inside the indexer. //Because we have generated something
+                    var tuple = GenerateBasePath(request.Client, Config.SuffixClient); //here, we are merely generating a path based on what the user has provided. It doesn't mean that such a path really exists . 
+                    paths.Add(tuple.path);
+                    //First verify if the path exists.. If yes, then try to read the file from there.
+                    try {
+                        var metafile = Path.Combine(BasePath, tuple.path, CLIENTMETAFILE);
+                        if (File.Exists(metafile)) {
+                            //File exists , gives us the password, encrypt key and everything.. if not available already in the database cache.
+                            var cInfo = File.ReadAllText(metafile).FromJson<OSSClientInfo>();
+                            if (cInfo != null) {
+                                Indexer?.TryAddInfo(cInfo);
+                            }
+                        }
+                    } catch (Exception) {
+                    }
                 }
             }
 
             if (request.Module != null) {
-                var info = Indexer.GetModuleInfo(request.Module.DisplayName);
+                var info = Indexer?.GetModuleInfo(request.Module.Name,request.Client.Name);
                 if (info != null) {
                     if (!string.IsNullOrWhiteSpace(info.Path)) paths.Add(info.Path); //Because sometimes we might have modules or clients where we dont' ahve any path specified. So , in those cases, we just ignore them.
                 } else if (!string.IsNullOrWhiteSpace(request.Module.DisplayName)) {
-                    paths.Add(GenerateBasePath(request.Module,Config.ModuleSuffix).path);
+                    var tuple = GenerateBasePath(request.Module, Config.SuffixModule); //here, we are merely generating a path based on what the user has provided. It doesn't mean that such a path really exists . 
+                    paths.Add(tuple.path);
+                    //First verify if the path exists.. If yes, then try to read the file from there.
+                    try {
+                        var metafile = Path.Combine(BasePath, tuple.path, MODULEMETAFILE);
+                        if (File.Exists(metafile)) {
+                            //File exists , gives us the password, encrypt key and everything.. if not available already in the database cache.
+                            var cInfo = File.ReadAllText(metafile).FromJson<OSSModuleInfo>();
+                            if (cInfo != null) {
+                                Indexer?.TryAddInfo(cInfo);
+                            }
+                        }
+                    } catch (Exception) {
+                    }
                 }
             }
             if (paths.Count > 0) result = Path.Combine(paths.ToArray());
@@ -183,32 +215,48 @@ namespace Haley.Services {
         }
 
         #region Disk Storage Management 
+
+        public (int length, int depth) SplitProvider (bool isNumber) {
+            if (isNumber) return (Config.SplitLengthNumber, Config.DepthNumber);
+            return (Config.SplitLengthHash, Config.DepthHash);
+        }
+
         public async Task<IOSSResponse> Upload(IOSSWrite input) {
             OSSResponse result = new OSSResponse() {
                 Status = false,
                 RawName = input.FileOriginalName
             };
             try {
+                var bpath = FetchBasePath(input);
+
                 //The last storage route should be in the format of a file
                 if (input.StorageRoutes.Count < 1 || !input.StorageRoutes.Last().IsFile) {
                     //We are trying to upload a file but the last storage route is not in the format of a file.
                     //We need to see if the filestream is present and take the name from there.
                     //Priority for the name comes from TargetName
+                    string targetFileName = string.Empty;
+                    string targetFilePath = string.Empty;
                     if (!string.IsNullOrWhiteSpace(input.TargetName)) {
-                        var tname = Path.GetFileName(input.TargetName);
-                        input.StorageRoutes.Add(new OSSRoute(tname, tname.ToDBName(), true, false));
+                        targetFileName = Path.GetFileName(input.TargetName);
                     } else if (!string.IsNullOrWhiteSpace(input.FileOriginalName)) {
-                        var oname = Path.GetFileName(input.FileOriginalName);
-                        input.StorageRoutes.Add(new OSSRoute(oname, oname.ToDBName(), true, false));
+                        targetFileName = Path.GetFileName(input.FileOriginalName);
                     }else if (input.FileStream != null && input.FileStream is FileStream fs) {
-                        var fsName = Path.GetFileName(fs.Name);
-                        input.StorageRoutes.Add(new OSSRoute(fsName, fsName.ToDBName(), true, false));
+                        targetFileName = Path.GetFileName(fs.Name);
                     } else {
                         throw new ArgumentNullException("For the given file no save name is specified.");
                     }
+
+                    //Now, this targetFileName, may or may not be split based on what was defined in the module.
+                    //Check the module info.
+                    var mInfo = Indexer?.GetModuleInfo(input.Module.Name, input.Client.Name);
+                    if (mInfo != null) {
+                        targetFilePath = OSSUtils.GenerateFileSystemSavePath(new OSSName(targetFileName, mInfo.ContentControl, mInfo.ContentParse), splitProvider: SplitProvider,suffix: Config.SuffixFile,throwExceptions:true).path;
+                    } else {
+                        targetFilePath = targetFileName.ToDBName(); //Just lower it 
+                    }
+                        input.StorageRoutes.Add(new OSSRoute(targetFileName, targetFilePath, true, false));
                 }
 
-                var bpath = FetchBasePath(input);
                 input?.BuildStoragePath(bpath); //This will also ensure we are not trying to delete something 
                 if (string.IsNullOrWhiteSpace(input.TargetPath)) {
                     result.Message = "Unable to generate the final storage path. Please check inputs.";

@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -17,8 +18,13 @@ using static Haley.Internal.IndexingQueries;
 
 namespace Haley.Utils {
     public class MariaDBIndexing : IDSSIndexing {
-        string _masterCoreFile = "dsscore.sql";
-        string _masterClientFile = "dssclient.sql";
+        const string DB_CORE_SQL_FILE = "dsscore.sql";
+        const string DB_CLIENT_SQL_FILE = "dssclient.sql";
+        const string DB_CORE_FALLBACK_NAME = "mss_core";
+        const string DB_CORE_SEARCH_TERM = "dss_core";
+        const string DB_CLIENT_SEARCH_TERM = "dss_client";
+        const string DB_SQL_FILE_LOCATION = "Resources";
+        const string DB_CLIENT_NAME_PREFIX = "dss_";
         string _key;
         IAdapterGateway _agw;
         bool isValidated = false;
@@ -95,13 +101,13 @@ namespace Haley.Utils {
 
             mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
 
-            if (mexists != null && mexists is long moduleId) {
+            if (mexists != null && mexists is long moduleId && TryCreateModuleKey(info.Name,info.ClientName,out var mKey)) {
                 //Now add this information to the indexed modules
-                if (!_idxModules.ContainsKey(info.Name)) {
+                if (!_idxModules.ContainsKey(mKey)) {
                     //Either not present.. or present but empty.
-                    _idxModules.TryAdd(info.Name, info);
-                } else if (_idxModules[info.Name] == null) {
-                    _idxModules.TryUpdate(info.Name, info, null);
+                    _idxModules.TryAdd(mKey, info);
+                } else if (_idxModules[mKey] == null) {
+                    _idxModules.TryUpdate(mKey, info, null);
                 }
                 return new Feedback(true, "Module Indexed.") { Result = moduleId };
             }
@@ -113,13 +119,13 @@ namespace Haley.Utils {
                 //If the service or the db doesn't exist, we throw exception or else the system would assume that nothing is wrong. If they wish , they can still turn of the indexing.
                 if (!_agw.ContainsKey(_key)) throw new ArgumentException($@"Storage Indexing service validation failure.No adapter found for the given key {_key}");
                 //Next step is to find out if the database exists or not? Should we even try to check if the database exists or directly run the sql script and create the database if it doesn't exists?
-                var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), "Resources", _masterCoreFile);
-                if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql file for creating the storage DB is not found. Please check : {_masterCoreFile}");
+                var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), DB_SQL_FILE_LOCATION, DB_CORE_SQL_FILE);
+                if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql file for creating the storage DB is not found. Please check : {DB_CORE_SQL_FILE}");
                 //if the file exists, then run this file against the adapter gateway but ignore the db name.
                 var content = File.ReadAllText(sqlFile);
                 //We know that the file itself contains "dss_core" as the schema name. Replace that with new one.
-                var dbname = _agw[_key].Info?.DBName ?? "mss_core"; //This is supposedly our db name.
-                content = content.Replace("dss_core", dbname);
+                var dbname = _agw[_key].Info?.DBName ?? DB_CORE_FALLBACK_NAME; //This is supposedly our db name.
+                content = content.Replace(DB_CORE_SEARCH_TERM, dbname);
                 //?? Should we run everything in one go or run as separate statements???
                 await _agw.NonQuery(new AdapterArgs(_key) { ExcludeDBInConString = true, Query = content });
                 isValidated = true;
@@ -132,13 +138,13 @@ namespace Haley.Utils {
             if (_idxClients.ContainsKey(info.Name) && _idxClients[info.Name] != null) return; //WHAT IF KEY IS PRESENT BUT IN ACTUAL THE DATABASE WAS DELETED MANUALLY? SHOULDN'T WE CHECK THAT? OR DIRECTLY THROW EXCEPTION AT RUN TIME? OR THAT THE DETAILS ARE NOT UPDATED?
             //if not, we need to ensure that this client schema is created and then add it internally.
             if (string.IsNullOrWhiteSpace(info.HashGuid)) info.HashGuid = info.DisplayName.CreateGUID(HashMethod.Sha256).ToString();
-            if (string.IsNullOrWhiteSpace(info.DatabaseName)) info.DatabaseName = $@"dss_{info.HashGuid.ToString().Replace("-", "")}";
-            var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), "Resources", _masterClientFile);
-            if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql for client file is not found. Please check : {_masterClientFile}");
+            if (string.IsNullOrWhiteSpace(info.DatabaseName)) info.DatabaseName = $@"{DB_CLIENT_NAME_PREFIX}{info.HashGuid.ToString().Replace("-", "")}";
+            var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), DB_SQL_FILE_LOCATION, DB_CLIENT_SQL_FILE);
+            if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql for client file is not found. Please check : {DB_CLIENT_SQL_FILE}");
             //if the file exists, then run this file against the adapter gateway but ignore the db name.
             var content = File.ReadAllText(sqlFile);
             //We know that the file itself contains "dss_core" as the schema name. Replace that with new one.
-            content = content.Replace("dss_client", info.DatabaseName);
+            content = content.Replace(DB_CLIENT_SEARCH_TERM, info.DatabaseName);
             //?? Should we run everything in one go or run as separate statements???
             await _agw.NonQuery(new AdapterArgs(_key) { ExcludeDBInConString = true, Query = content });
             if (_idxClients.ContainsKey(info.Name)) {
@@ -161,11 +167,31 @@ namespace Haley.Utils {
             return null;
         }
 
-        public OSSModuleInfo GetModuleInfo(string name) {
-            if (!name.AssertValue(false)) return null;
-            var dbname = name.ToDBName();
-            if (_idxModules.ContainsKey(dbname)) return _idxModules[dbname];
+        public OSSModuleInfo GetModuleInfo(string name, string client_name) {
+            if (!TryCreateModuleKey(name, client_name, out var moduleKey)) return null;
+            if (_idxModules.ContainsKey(moduleKey)) return _idxModules[moduleKey];
             return null;
+        }
+
+        public bool TryCreateModuleKey(string name,string client_name,out string modKey) {
+            modKey = string.Empty;
+            if (!name.AssertValue(false)) return false;
+            if (!client_name.AssertValue(false)) return false;
+            modKey = $@"{client_name.ToDBName()}##{name.ToDBName()}";
+            return true;
+        }
+
+        public bool TryAddInfo(OSSDirectory dirInfo) {
+            if (dirInfo == null || !dirInfo.Name.AssertValue(false)) return false;
+            if (dirInfo is OSSClientInfo clientInfo) {
+                if (_idxClients.ContainsKey(clientInfo.Name)) return false;
+                _idxClients.TryAdd(dirInfo.Name, clientInfo);
+            } else if (dirInfo is OSSModuleInfo modInfo) {
+                if (!TryCreateModuleKey(modInfo.Name, modInfo.ClientName, out var mKey)) return false;
+                if (_idxModules.ContainsKey(mKey)) return false; 
+                _idxModules.TryAdd(mKey, modInfo);
+            }
+            return true;
         }
 
         public MariaDBIndexing(IAdapterGateway agw, string key) {

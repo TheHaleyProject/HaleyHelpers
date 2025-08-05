@@ -17,6 +17,10 @@ using System.Xml.Schema;
 namespace Haley.Utils
 {
     public static class OSSUtils {
+        static (int length,int depth) defaultSplitProvider(bool isInputNumber) {
+            if (!isInputNumber) return (2, 6); //Split by 2 and go upto 6 depth.
+            return (2, 0); //For number go full round
+        }
         public static string SanitizePath(this string input) {
             if (string.IsNullOrWhiteSpace(input)) return input;
             input = input.Trim();
@@ -27,7 +31,7 @@ namespace Haley.Utils
             return input;
         }
 
-        public static (string name, string path, Guid guid) GenerateFileSystemSavePath(OSSName nObj, OSSParseMode pmode = OSSParseMode.Parse, int split_length = 2, int depth = 0, string suffix = null, Func<string,long> idGenerator = null,bool throwExceptions = false) {
+        public static (string name, string path, Guid guid) GenerateFileSystemSavePath(OSSName nObj,OSSParseMode? parse_overwrite = null, Func<bool,(int length,int depth)> splitProvider = null, string suffix = null, Func<string,long> idGenerator = null,bool throwExceptions = false) {
             if (nObj == null || !nObj.Validate().Status) return (string.Empty, string.Empty, Guid.Empty);
             string result = string.Empty;
             var dbname = nObj.Name ?? nObj.DisplayName.ToDBName();
@@ -41,12 +45,12 @@ namespace Haley.Utils
                     nObj.SaveAsName = dbname;
                 break;
                 case OSSControlMode.Number:
-                if (dbname.TryPopulateControlledID(out objId, pmode, idGenerator, throwExceptions)) {
+                if (dbname.TryPopulateControlledID(out objId, parse_overwrite ?? nObj.ParseMode, idGenerator, throwExceptions)) {
                     nObj.SaveAsName = objId.ToString();
                 }
                 break;
                 case OSSControlMode.Guid:
-                 if (dbname.TryPopulateControlledGUID(out objGuid, pmode, throwExceptions)) {
+                 if (dbname.TryPopulateControlledGUID(out objGuid, parse_overwrite ?? nObj.ParseMode, throwExceptions)) {
                     nObj.SaveAsName = objGuid.ToString("N");
                 }
                 break;
@@ -57,10 +61,10 @@ namespace Haley.Utils
                     nObj.SaveAsName = objId.ToString();
                 } else if(dbname.TryPopulateControlledGUID(out objGuid, OSSParseMode.Parse, false)){
                     nObj.SaveAsName = objGuid.ToString("N");
-                } else if (dbname.TryPopulateControlledID(out objId, pmode, idGenerator, false)) {
+                } else if (dbname.TryPopulateControlledID(out objId, parse_overwrite ?? nObj.ParseMode, idGenerator, false)) {
                     //Try with original parsing mode, ,may be we are asked to generte. We dont' know;
                     nObj.SaveAsName = objId.ToString();
-                } else if (dbname.TryPopulateControlledGUID(out objGuid, pmode, throwExceptions)) {
+                } else if (dbname.TryPopulateControlledGUID(out objGuid, parse_overwrite ?? nObj.ParseMode, throwExceptions)) {
                     nObj.SaveAsName = objGuid.ToString("N");
                 }
                 break;
@@ -79,28 +83,24 @@ namespace Haley.Utils
                     nObj.SaveAsName += $@".{extension}";
                 }
             }
-                result = PreparePath(nObj.SaveAsName, depth, split_length, nObj.ControlMode);
+                result = PreparePath(nObj.SaveAsName, splitProvider, nObj.ControlMode);
 
             //We add suffix for all controlled paths.
             return (nObj.SaveAsName, result, hashGuid);
         }
 
-        public static string PreparePath(string input, int depth =0, int split_length = 2, OSSControlMode control_mode = OSSControlMode.None) {
-            if (string.IsNullOrWhiteSpace(input)) return input;
-            if (depth < 0) depth = 0;
-            if (depth > 12) depth = 12;
+        public static string PreparePath(string input, Func<bool, (int length, int depth)> splitProvider = null, OSSControlMode control_mode = OSSControlMode.None) {
+            if (string.IsNullOrWhiteSpace(input) || control_mode == OSSControlMode.None) return input;
+            if (splitProvider == null) splitProvider = defaultSplitProvider;
+            bool isNumber = input.IsNumber();
+            var sinfo = splitProvider(isNumber);
+            if (sinfo.depth < 0) sinfo.depth = 0;
+            if (sinfo.depth > 12) sinfo.depth = 12;
 
-            if (split_length < 1) split_length = 1;
-            if (split_length > 8) split_length = 8;
+            if (sinfo.length < 1) sinfo.length = 1;
+            if (sinfo.length > 8) sinfo.length = 8;
 
-            if (control_mode != OSSControlMode.None) {
-                if (input.IsNumber()) {
-                    return input.Separate(split_length, depth, addPadding: true, resultAsPath: true);
-                } else {
-                    return input.Separate(split_length, depth, addPadding: false, resultAsPath: true);
-                }
-            }
-            return input;
+            return input.Separate(sinfo.length, sinfo.depth, addPadding: isNumber ? true : false, resultAsPath: true);
         }
 
         public static async Task<bool> TryReplaceFileAsync(this Stream sourceStream, string path, int bufferSize, int maxRetries = 5, int delayMilliseconds = 500) {

@@ -136,7 +136,7 @@ class Testing {
     public async Task StorageTest() {
         try {
             var _agw = new AdapterGateway() { ThrowCRUDExceptions = true }; //Only for testing.
-            var dss = new DiskStorageService().SetIndexer(new MariaDBIndexing(_agw, "mss_db"));
+            var dss = new DiskStorageService(_agw,"mss_db");
             await dss.RegisterClient(new OSSName("bcde"));
             await dss.RegisterClient(new OSSName("olacabs",OSSControlMode.Guid));
             await dss.RegisterModule("lingam","bcde");
