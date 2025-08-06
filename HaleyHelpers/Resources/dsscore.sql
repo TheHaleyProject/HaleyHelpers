@@ -24,13 +24,13 @@ CREATE TABLE IF NOT EXISTS `client` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
   `display_name` varchar(100) NOT NULL,
-  `hash_guid` varchar(48) NOT NULL DEFAULT uuid() COMMENT 'Guid should be based on the hash of the name because it should be recreatable at the application level.\n\nThe hash should be recreatable from the application also. So, take the client name and then do sha256 to generate the hash. Idea is when the DB is down, still the folder should be reachable.\n\nEach client should be aware that if their base name is managed or not. So, that one client A might say that its'' base directory is not managed, and client B might say that its base directory is managed.',
+  `guid` varchar(48) NOT NULL DEFAULT uuid(),
   `path` varchar(140) NOT NULL COMMENT 'Created only at register time.\nWe would have anyhow created the guid based on the provided name. If the client is created as managed, then the path should be based on the guid. or else it should be based on the name itself.',
   `created` timestamp NOT NULL DEFAULT current_timestamp(),
   `modified` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `unq_client` (`name`),
-  UNIQUE KEY `unq_client_1` (`hash_guid`)
+  UNIQUE KEY `unq_client_1` (`guid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- Data exporting was unselected.
@@ -50,22 +50,45 @@ CREATE TABLE IF NOT EXISTS `client_keys` (
 -- Dumping structure for table dss_core.module
 CREATE TABLE IF NOT EXISTS `module` (
   `parent` int(11) NOT NULL,
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `id` int(11) NOT NULL,
   `name` varchar(120) NOT NULL,
   `display_name` varchar(120) NOT NULL,
-  `hash_guid` varchar(48) NOT NULL COMMENT 'same like the client. Guid is created based on the hash of the entered name',
+  `guid` varchar(48) NOT NULL,
   `path` varchar(200) NOT NULL,
   `created` datetime NOT NULL DEFAULT current_timestamp(),
   `active` bit(1) NOT NULL DEFAULT b'1',
   `modified` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `control_mode` int(11) NOT NULL DEFAULT 0 COMMENT '0 - none\n1 - numbers\n2 - hash\n3 - both',
-  `parse_mode` int(11) NOT NULL DEFAULT 0 COMMENT '0- Parse\n1- Generate\n2- Parse or generate',
+  `cuid` varchar(48) NOT NULL COMMENT 'collision resistant unique identifier',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unq_directory_01` (`parent`,`name`),
-  UNIQUE KEY `unq_directory_1` (`parent`,`hash_guid`),
-  CONSTRAINT `fk_direcory_client` FOREIGN KEY (`parent`) REFERENCES `client` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
-  CONSTRAINT `cns_module` CHECK (`control_mode` >= 0 and `control_mode` < 4),
-  CONSTRAINT `cns_module_1` CHECK (`parse_mode` >= 0 and `parse_mode` < 3)
+  UNIQUE KEY `unq_module` (`parent`,`guid`),
+  UNIQUE KEY `unq_module_0` (`cuid`),
+  CONSTRAINT `fk_direcory_client` FOREIGN KEY (`parent`) REFERENCES `client` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+-- Data exporting was unselected.
+
+-- Dumping structure for table dss_core.workspace
+CREATE TABLE IF NOT EXISTS `workspace` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `parent` int(11) NOT NULL,
+  `name` varchar(120) NOT NULL,
+  `display_name` varchar(120) NOT NULL,
+  `guid` varchar(48) NOT NULL,
+  `path` varchar(200) NOT NULL,
+  `active` bit(1) NOT NULL DEFAULT b'1',
+  `created` timestamp NOT NULL DEFAULT current_timestamp(),
+  `modified` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `control_mode` int(11) NOT NULL DEFAULT 0 COMMENT '0 - none\n1 - numbers\n2 - hash\n3 - both',
+  `parse_mode` int(11) NOT NULL DEFAULT 0 COMMENT '0- Parse\n1- Generate\n2- Parse or generate',
+  `cuid` varchar(48) NOT NULL COMMENT 'collision resistant unique identifier',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unq_workspace` (`parent`,`name`),
+  UNIQUE KEY `unq_workspace_0` (`parent`,`guid`),
+  UNIQUE KEY `unq_workspace_1` (`cuid`),
+  CONSTRAINT `fk_workspace_module` FOREIGN KEY (`parent`) REFERENCES `module` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `cns_workspace` CHECK (`control_mode` >= 0 and `control_mode` <= 3),
+  CONSTRAINT `cns_workspace_0` CHECK (`parse_mode` >= 0 and `parse_mode` <= 2)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
 -- Data exporting was unselected.

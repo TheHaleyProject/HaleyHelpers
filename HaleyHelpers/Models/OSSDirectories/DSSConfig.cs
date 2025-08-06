@@ -9,7 +9,7 @@ namespace Haley.Models {
         //All suffix are applicable only when dealing with controlled names.
         public string SuffixClient { get; set; } = "c";
         public string SuffixModule { get; set; } = "m";
-        public string SuffixDirectory { get; set; } = "d";
+        public string SuffixWorkSpace { get; set; } = "w";
         public string SuffixFile { get; set; } = "f";
         public int SplitLengthNumber { get; set; } = 2; //For numbers
         public int DepthNumber { get; set; } = 0;

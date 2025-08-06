@@ -91,7 +91,8 @@ namespace Haley.Utils
 
         public static Guid CreateGUID(this string input,HashMethod method = HashMethod.MD5)
         {
-            var inputbytes = Encoding.UTF8.GetBytes(input);
+            if (string.IsNullOrWhiteSpace(input)) throw new ArgumentNullException("Input is null. Cannot create GUID.");
+            var inputbytes = Encoding.UTF8.GetBytes(input.Trim());
 
             //Let us only start with either md5 or sha256.
             if (!(method == HashMethod.MD5 || method == HashMethod.Sha256)) method = HashMethod.MD5;

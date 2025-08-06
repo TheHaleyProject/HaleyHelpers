@@ -137,12 +137,12 @@ class Testing {
         try {
             var _agw = new AdapterGateway() { ThrowCRUDExceptions = true }; //Only for testing.
             var dss = new DiskStorageService(_agw,"mss_db");
-            await dss.RegisterClient(new OSSCtrld("bcde"));
-            await dss.RegisterClient(new OSSCtrld("olacabs",OSSControlMode.Guid));
+            await dss.RegisterClient(new OSSControlled("bcde"));
+            await dss.RegisterClient(new OSSControlled("olacabs",OSSControlMode.Guid));
             await dss.RegisterModule("lingam","bcde");
-            await dss.RegisterModule(new OSSCtrld("test",OSSControlMode.Guid),new OSSCtrld("olacabs",OSSControlMode.Guid));
-            await dss.RegisterModule(new OSSCtrld("test12"),new OSSCtrld("olacabs",OSSControlMode.Guid));
-            await dss.RegisterModule(new OSSCtrld("contest", OSSControlMode.Guid),new OSSCtrld("bcde"),OSSControlMode.Both,OSSParseMode.ParseOrGenerate);
+            await dss.RegisterModule(new OSSControlled("test",OSSControlMode.Guid),new OSSControlled("olacabs",OSSControlMode.Guid));
+            await dss.RegisterModule(new OSSControlled("test12"),new OSSControlled("olacabs",OSSControlMode.Guid));
+            await dss.RegisterModule(new OSSControlled("contest", OSSControlMode.Guid),new OSSControlled("bcde"));
 
 
             //for (int i = 0; i < 4; i++) {

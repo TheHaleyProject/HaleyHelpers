@@ -17,12 +17,12 @@ namespace Haley.Models {
         public string Id { get; set; }
         public Stream FileStream { get; set; }
 
-        public new OSSWriteRequest SetClient(OSSCtrld input) {
+        public new OSSWriteRequest SetClient(OSSControlled input) {
              base.SetClient(input);
             return this;
         }
 
-        public new OSSWriteRequest SetModule(OSSCtrld input) {
+        public new OSSWriteRequest SetModule(OSSControlled input) {
             base.SetModule(input);
             return this;
         }

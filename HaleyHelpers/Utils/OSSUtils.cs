@@ -31,40 +31,36 @@ namespace Haley.Utils
             return input;
         }
 
-        public static (string name, string path, Guid guid) GenerateFileSystemSavePath(OSSCtrld nObj,OSSParseMode? parse_overwrite = null, Func<bool,(int length,int depth)> splitProvider = null, string suffix = null, Func<string,long> idGenerator = null,bool throwExceptions = false) {
-            if (nObj == null || !nObj.Validate().Status) return (string.Empty, string.Empty, Guid.Empty);
+        public static (string name, string path) GenerateFileSystemSavePath(IOSSControlled nObj,OSSParseMode? parse_overwrite = null, Func<bool,(int length,int depth)> splitProvider = null, string suffix = null, Func<string,long> idGenerator = null,bool throwExceptions = false) {
+            if (nObj == null || !nObj.TryValidate(out _)) return (string.Empty, string.Empty);
             string result = string.Empty;
-            var dbname = nObj.Name ?? nObj.DisplayName.ToDBName();
-            Guid hashGuid = Guid.Empty; //Regardless of if the input is number or guid or anything else
-            dbname.TryPopulateControlledGUID(out hashGuid, OSSParseMode.ParseOrGenerate, false); //Not error thrown.
-
             long objId = 0;
             Guid objGuid = Guid.Empty;
             switch (nObj.ControlMode) {
                 case OSSControlMode.None:
-                    nObj.SaveAsName = dbname;
+                    nObj.SaveAsName = nObj.Name;
                 break;
                 case OSSControlMode.Number:
-                if (dbname.TryPopulateControlledID(out objId, parse_overwrite ?? nObj.ParseMode, idGenerator, throwExceptions)) {
+                if (nObj.Name.TryPopulateControlledID(out objId, parse_overwrite ?? nObj.ParseMode, idGenerator, throwExceptions)) {
                     nObj.SaveAsName = objId.ToString();
                 }
                 break;
                 case OSSControlMode.Guid:
-                 if (dbname.TryPopulateControlledGUID(out objGuid, parse_overwrite ?? nObj.ParseMode, throwExceptions)) {
+                 if (nObj.Name.TryPopulateControlledGUID(out objGuid, parse_overwrite ?? nObj.ParseMode, throwExceptions)) {
                     nObj.SaveAsName = objGuid.ToString("N");
                 }
                 break;
                 case OSSControlMode.Both:
                 //In case of both, the problem is, we need to first ensure, we are able to parse them.. and then only go ahead with generating.
                 //Focus on parsing first and then if doesn't work, hten jump to generate. Even in that case we need to see through thenend.
-                if (dbname.TryPopulateControlledID(out objId, OSSParseMode.Parse, idGenerator, false)) {
+                if (nObj.Name.TryPopulateControlledID(out objId, OSSParseMode.Parse, idGenerator, false)) {
                     nObj.SaveAsName = objId.ToString();
-                } else if(dbname.TryPopulateControlledGUID(out objGuid, OSSParseMode.Parse, false)){
+                } else if(nObj.Name.TryPopulateControlledGUID(out objGuid, OSSParseMode.Parse, false)){
                     nObj.SaveAsName = objGuid.ToString("N");
-                } else if (dbname.TryPopulateControlledID(out objId, parse_overwrite ?? nObj.ParseMode, idGenerator, false)) {
+                } else if (nObj.Name.TryPopulateControlledID(out objId, parse_overwrite ?? nObj.ParseMode, idGenerator, false)) {
                     //Try with original parsing mode, ,may be we are asked to generte. We dont' know;
                     nObj.SaveAsName = objId.ToString();
-                } else if (dbname.TryPopulateControlledGUID(out objGuid, parse_overwrite ?? nObj.ParseMode, throwExceptions)) {
+                } else if (nObj.Name.TryPopulateControlledGUID(out objGuid, parse_overwrite ?? nObj.ParseMode, throwExceptions)) {
                     nObj.SaveAsName = objGuid.ToString("N");
                 }
                 break;
@@ -81,7 +77,7 @@ namespace Haley.Utils
                 }
 
                 //Populate methods would have removed the Extensions. We add them back.
-                var extension = Path.GetExtension(dbname);
+                var extension = Path.GetExtension(nObj.Name);
 
                 //Add extension if exists.
                 if (!string.IsNullOrWhiteSpace(extension)) {
@@ -90,7 +86,7 @@ namespace Haley.Utils
             }
 
             //We add suffix for all controlled paths.
-            return (nObj.SaveAsName, result, hashGuid);
+            return (nObj.SaveAsName, result);
         }
 
         public static string PreparePath(string input, Func<bool, (int length, int depth)> splitProvider = null, OSSControlMode control_mode = OSSControlMode.None) {

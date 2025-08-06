@@ -32,12 +32,11 @@ namespace Haley.Utils {
             if (!isValidated) await Validate();
         }
 
-        ConcurrentDictionary<string, OSSModule> _idxModules = new ConcurrentDictionary<string, OSSModule>();
-        ConcurrentDictionary<string, OSSClient> _idxClients = new ConcurrentDictionary<string, OSSClient>();
+        ConcurrentDictionary<string, IOSSDirectory> _idxDirectories = new ConcurrentDictionary<string, IOSSDirectory>();
        
-        public async Task<IFeedback> RegisterClient(OSSClient info) {
+        public async Task<IFeedback> RegisterClient(IOSSClient info) {
             if (info == null) throw new ArgumentNullException("Input client directory info cannot be null");
-            info.Assert();
+            if (!info.TryValidate(out var msg)) throw new ArgumentException(msg);
             //We generate the hash_guid ourselves for the client.
             await EnsureValidation();
 
@@ -54,10 +53,6 @@ namespace Haley.Utils {
                 }
             } else {
                 
-                if (info.Guid == null) {
-                    info.DisplayName.TryPopulateControlledGUID(out var hashGuid, OSSParseMode.ParseOrGenerate, false); //Not error thrown.
-                    info.Guid = hashGuid.ToString("N"); //No Context added. Check this one later.
-                }
                 using (thandler.Begin()) {
                     //Register client
                     await _agw.NonQuery((new AdapterArgs(_key) { Query = CLIENT.UPSERT }).ForTransaction(thandler), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.Guid), (PATH, info.Path));
@@ -77,40 +72,57 @@ namespace Haley.Utils {
             }
             return new Feedback(false, "Unable to index the client");
         }
-        public async Task<IFeedback> RegisterModule(OSSModule info) {
+        public async Task<IFeedback> RegisterModule(IOSSModule info) {
             if (info == null) throw new ArgumentNullException("Input Module directory info cannot be null");
-            info.Assert();
+            if (!info.TryValidate(out var msg)) throw new ArgumentNullException(msg);
             //We generate the hash_guid ourselves for the client.
             await EnsureValidation();
 
             //Check if client exists. If not throw exeception or don't register? //Send feedback.
-            var cexists = await _agw.Scalar(new AdapterArgs(_key) { Query = CLIENT.EXISTS }, (NAME, info.ClientName.ToDBName()));
-            if (cexists == null || !(cexists is int clientId)) throw new ArgumentException($@"Client {info.ClientName} doesn't exist. Unable to index the module {info.DisplayName}.");
+            var cexists = await _agw.Scalar(new AdapterArgs(_key) { Query = CLIENT.EXISTS }, (NAME, info.Client.Name));
+            if (cexists == null || !(cexists is int clientId)) throw new ArgumentException($@"Client {info.Client.Name} doesn't exist. Unable to index the module {info.DisplayName}.");
             var mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
             if (mexists != null && mexists is long mId) {
                 //Module exists. .just update it.
                 await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPDATE }, (DNAME, info.DisplayName), (PATH, info.Path),(CONTROLMODE,(int)info.ControlMode),(PARSEMODE,(int)info.ParseMode), (ID, mId));
             } else {
-                if (info.Guid == null) {
-                    info.DisplayName.TryPopulateControlledGUID(out var hashGuid, OSSParseMode.ParseOrGenerate, false); //Not error thrown.
-                    info.Guid = hashGuid.ToString("N"); //No Context added. Check this one later.
-                }
-
                 await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPSERT }, (PARENT, clientId), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.Guid), (PATH, info.Path),(CONTROLMODE, (int)info.ControlMode), (PARSEMODE, (int)info.ParseMode));
             }
 
             mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
 
-            if (mexists != null && mexists is long moduleId && TryCreateModuleKey(info.Name,info.ClientName,out var mKey)) {
+            if (mexists != null && mexists is long moduleId && TryCreateModuleKey(info.Name,info.Client.Name,out var mKey)) {
                 //Now add this information to the indexed modules
-                if (!_idxModules.ContainsKey(mKey)) {
+                if (!_idxDirectories.ContainsKey(mKey)) {
                     //Either not present.. or present but empty.
-                    _idxModules.TryAdd(mKey, info);
-                } else if (_idxModules[mKey] == null) {
-                    _idxModules.TryUpdate(mKey, info, null);
+                    _idxDirectories.TryAdd(mKey, info);
+                } else if (_idxDirectories[mKey] == null) {
+                    _idxDirectories.TryUpdate(mKey, info, null);
                 }
                 return new Feedback(true, "Module Indexed.") { Result = moduleId };
             }
+
+            return new Feedback(false, "Unable to index the module");
+        }
+        public async Task<IFeedback> RegisterWorkspace(IOSSWorkspace info) {
+            if (info == null) throw new ArgumentNullException("Input Module directory info cannot be null");
+            if (!info.TryValidate(out var msg)) throw new ArgumentNullException(msg);
+            //We generate the hash_guid ourselves for the client.
+            await EnsureValidation();
+
+            //Check if client exists. If not throw exeception or don't register? //Send feedback.
+            var cexists = await _agw.Scalar(new AdapterArgs(_key) { Query = CLIENT.EXISTS }, (NAME, info.Client.Name));
+            if (cexists == null || !(cexists is int clientId)) throw new ArgumentException($@"Client {info.Client.Name} doesn't exist. Unable to index the module {info.DisplayName}.");
+            var mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
+            if (mexists != null && mexists is long mId) {
+                //Module exists. .just update it.
+                await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPDATE }, (DNAME, info.DisplayName), (PATH, info.Path), (CONTROLMODE, (int)info.ControlMode), (PARSEMODE, (int)info.ParseMode), (ID, mId));
+            } else {
+                await _agw.NonQuery(new AdapterArgs(_key) { Query = MODULE.UPSERT }, (PARENT, clientId), (NAME, info.Name), (DNAME, info.DisplayName), (GUID, info.Guid), (PATH, info.Path), (CONTROLMODE, (int)info.ControlMode), (PARSEMODE, (int)info.ParseMode));
+            }
+
+            mexists = await _agw.Scalar(new AdapterArgs(_key) { Query = MODULE.EXISTS }, (NAME, info.Name), (PARENT, clientId));
+
 
             return new Feedback(false, "Unable to index the module");
         }
@@ -134,24 +146,24 @@ namespace Haley.Utils {
             }
            
         }
-        async Task ValidateClient(OSSClient info) {
-            if (_idxClients.ContainsKey(info.Name) && _idxClients[info.Name] != null) return; //WHAT IF KEY IS PRESENT BUT IN ACTUAL THE DATABASE WAS DELETED MANUALLY? SHOULDN'T WE CHECK THAT? OR DIRECTLY THROW EXCEPTION AT RUN TIME? OR THAT THE DETAILS ARE NOT UPDATED?
-            //if not, we need to ensure that this client schema is created and then add it internally.
-            if (string.IsNullOrWhiteSpace(info.Guid)) info.Guid = info.DisplayName.CreateGUID(HashMethod.Sha256).ToString();
-            if (string.IsNullOrWhiteSpace(info.DatabaseName)) info.DatabaseName = $@"{DB_CLIENT_NAME_PREFIX}{info.Guid.ToString().Replace("-", "")}";
-            var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), DB_SQL_FILE_LOCATION, DB_CLIENT_SQL_FILE);
-            if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql for client file is not found. Please check : {DB_CLIENT_SQL_FILE}");
-            //if the file exists, then run this file against the adapter gateway but ignore the db name.
-            var content = File.ReadAllText(sqlFile);
-            //We know that the file itself contains "dss_core" as the schema name. Replace that with new one.
-            content = content.Replace(DB_CLIENT_SEARCH_TERM, info.DatabaseName);
-            //?? Should we run everything in one go or run as separate statements???
-            await _agw.NonQuery(new AdapterArgs(_key) { ExcludeDBInConString = true, Query = content });
-            if (_idxClients.ContainsKey(info.Name)) {
-                _idxClients.TryUpdate(info.Name, info, null); //Gives the schema name
-            } else {
-                _idxClients.TryAdd(info.Name, info);
-            }
+        async Task ValidateClient(IOSSClient info) {
+            //if (_idxClients.ContainsKey(info.Name) && _idxClients[info.Name] != null) return; //WHAT IF KEY IS PRESENT BUT IN ACTUAL THE DATABASE WAS DELETED MANUALLY? SHOULDN'T WE CHECK THAT? OR DIRECTLY THROW EXCEPTION AT RUN TIME? OR THAT THE DETAILS ARE NOT UPDATED?
+            ////if not, we need to ensure that this client schema is created and then add it internally.
+            //if (string.IsNullOrWhiteSpace(info.Guid)) info.Guid = info.DisplayName.CreateGUID(HashMethod.Sha256).ToString();
+            ////if (string.IsNullOrWhiteSpace(info.DatabaseName)) info.DatabaseName = $@"{DB_CLIENT_NAME_PREFIX}{info.Guid.ToString().Replace("-", "")}";
+            ////var sqlFile = Path.Combine(AssemblyUtils.GetBaseDirectory(), DB_SQL_FILE_LOCATION, DB_CLIENT_SQL_FILE);
+            ////if (!File.Exists(sqlFile)) throw new ArgumentException($@"Master sql for client file is not found. Please check : {DB_CLIENT_SQL_FILE}");
+            //////if the file exists, then run this file against the adapter gateway but ignore the db name.
+            ////var content = File.ReadAllText(sqlFile);
+            //////We know that the file itself contains "dss_core" as the schema name. Replace that with new one.
+            ////content = content.Replace(DB_CLIENT_SEARCH_TERM, info.DatabaseName);
+            ////?? Should we run everything in one go or run as separate statements???
+            ////await _agw.NonQuery(new AdapterArgs(_key) { ExcludeDBInConString = true, Query = content });
+            ////if (_idxClients.ContainsKey(info.Name)) {
+            ////    _idxClients.TryUpdate(info.Name, info, null); //Gives the schema name
+            ////} else {
+            ////    _idxClients.TryAdd(info.Name, info);
+            ////}
         }
         async Task ValidateClient(string name) {
             name.AssertValue(true, "Client Name");
@@ -160,14 +172,14 @@ namespace Haley.Utils {
             await ValidateClient(new OSSClient() { SaveAsName = clientName,DisplayName = name});
         }
 
-        public OSSClient GetClientInfo(string name) {
+        public IOSSClient GetClientInfo(string name) {
             if(!name.AssertValue(false))return null;
             var dbname = name.ToDBName();
             if (_idxClients.ContainsKey(dbname)) return _idxClients[dbname];
             return null;
         }
 
-        public OSSModule GetModuleInfo(string name, string client_name) {
+        public IOSSModule GetModuleInfo(string name, string client_name) {
             if (!TryCreateModuleKey(name, client_name, out var moduleKey)) return null;
             if (_idxModules.ContainsKey(moduleKey)) return _idxModules[moduleKey];
             return null;
@@ -181,19 +193,36 @@ namespace Haley.Utils {
             return true;
         }
 
-        public bool TryAddInfo(OSSDirectory dirInfo) {
-            if (dirInfo == null || !dirInfo.Name.AssertValue(false)) return false;
-            if (dirInfo is OSSClient clientInfo) {
-                if (_idxClients.ContainsKey(clientInfo.Name)) return false;
-                _idxClients.TryAdd(dirInfo.Name, clientInfo);
-            } else if (dirInfo is OSSModule modInfo) {
-                if (!TryCreateModuleKey(modInfo.Name, modInfo.ClientName, out var mKey)) return false;
-                if (_idxModules.ContainsKey(mKey)) return false; 
-                _idxModules.TryAdd(mKey, modInfo);
+        public bool TryAddInfo(IOSSDirectory dirInfo, bool replace = false) {
+            if (dirInfo == null || !dirInfo.Name.AssertValue(false) || !dirInfo.Cuid.AssertValue(false)) return false;
+            if (_idxDirectories.ContainsKey(dirInfo.Cuid)) {
+                if (!replace) return false;
+                return _idxDirectories.TryUpdate(dirInfo.Cuid, dirInfo, _idxDirectories[dirInfo.Cuid]);
+            } else {
+                return _idxDirectories.TryAdd(dirInfo.Cuid, dirInfo);
             }
             return true;
         }
-
+        public bool TryGetComponentInfo<T>(string key, out T component) where T : IOSSDirectory {
+            component = default(T);
+            if (string.IsNullOrWhiteSpace(key) || !_idxDirectories.ContainsKey(key)) return false;
+            var data = _idxDirectories[key];
+            if (data == null || !(data is T)) return false;
+            component = (T)data;
+            return true;
+        }
+        
+        public bool TryMakeCUID(out string key, string workspaceName = null, string clientName = null, string moduleName = null) {
+            key = string.Empty;
+            if (!clientName.AssertValue(false)) return false;
+            if (!moduleName.AssertValue(false) && !workspaceName.AssertValue(false)) {
+                key = clientName.ToDBName().CreateGUID().ToString("N");
+                return true;
+            }
+            string[] inputs = new string[] {clientName ,moduleName , workspaceName };
+            key = string.Join("##", inputs.Select(p => p.ToDBName())).CreateGUID().ToString("N");
+            return true;
+        }
         public MariaDBIndexing(IAdapterGateway agw, string key) {
             _key = key;
             _agw = agw;
