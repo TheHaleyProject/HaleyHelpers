@@ -31,20 +31,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="Resources\dssclient.sql" />
-    <None Remove="Resources\dsscore.sql" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="Resources\dssclient.sql">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Resources\dsscore.sql">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
    <!--  <None Remove="Scripts\Notes.txt" /> -->
     <None Include="..\Haley.png">
       <Pack>True</Pack>
