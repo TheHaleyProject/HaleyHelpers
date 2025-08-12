@@ -45,6 +45,38 @@ namespace Haley.Utils
             return new Feedback(false, "Operation completed. No value found.");
         }
 
+        public static List<Dictionary<string, object>> AsDictionaryList(this IConfigurationSection section, char delimiter = ';') {
+            if (section == null) return null;
+            var result = new List<Dictionary<string, object>>();
+            foreach (var child in section.GetChildren()) {
+                if (child == null || string.IsNullOrWhiteSpace(child.Key)) continue; //skip empty children
+                var dic = new Dictionary<string, object>();
+
+                //Straight children with values.
+                if (child.Value != null && !string.IsNullOrWhiteSpace(child.Value)) {
+                    //If the child has a value, then we can add it directly.
+                    if (child.Value.TryDictionarySplit(out var valueDic, delimiter)) {
+                        dic.Add(child.Key, valueDic);
+                    } else {
+                        dic.Add(child.Key, child.Value);
+                    }
+                    result.Add(dic);
+                    continue; //skip to next child
+                }
+                
+                //A child could contain a plain value or a json string or a section.
+                foreach (var grandChild in child.GetChildren()) {
+                    if (grandChild.Value == null) {
+                        dic[grandChild.Key] = AsDictionaryList(grandChild);
+                    } else {
+                        dic[grandChild.Key] = grandChild.Value;
+                    }
+                }
+                result.Add(dic);
+            }
+            return result;
+        }
+
         public static string[] GetResourceNames(Assembly assembly_name = null) {
             if (assembly_name == null) {
                 assembly_name = Assembly.GetCallingAssembly();
