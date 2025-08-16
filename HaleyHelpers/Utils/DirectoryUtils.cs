@@ -21,11 +21,14 @@ namespace Haley.Utils
         public static async Task<bool> TryReplaceFileAsync(this Stream sourceStream, string path, int bufferSize, int maxRetries = 5, int delayMilliseconds = 500) {
             for (int attempt = 0; attempt < maxRetries; attempt++) {
                 try {
+                    if (!sourceStream.CanSeek && sourceStream.Position > 0) return false;
+                    sourceStream.Position = 0; // Reset the source stream position if it is seekable
                     using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None)) {
                         await sourceStream.CopyToAsync(fs, bufferSize);
                         return true;
                     }
                 } catch (IOException ex) {
+                    await TryDeleteFile(path, 2);
                     await Task.Delay(delayMilliseconds);
                 }
             }
