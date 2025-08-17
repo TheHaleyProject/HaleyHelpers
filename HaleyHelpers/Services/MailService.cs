@@ -34,7 +34,7 @@ namespace Haley.Services {
             IsInitialized = true;
         }
 
-        void Sanitize(EmailData data) {
+        void Sanitize(IEmailData data) {
             //remove all the null values.
             data.CC = data.CC?.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray() ?? new string[0];
             data.BCC = data.BCC?.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray() ?? new string[0];
@@ -45,7 +45,7 @@ namespace Haley.Services {
             data.Body = data.Body ?? "(No Body)";
         }
 
-        public async Task<IFeedback> SendEmailAsync(EmailData data) {
+        public async Task<IFeedback> SendEmailAsync(IEmailData data) {
             Feedback result = new Feedback();
             try {
                 if (!IsInitialized) return result.SetStatus(false).SetMessage("EmailService not initialized");
