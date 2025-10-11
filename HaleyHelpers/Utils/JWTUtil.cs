@@ -44,5 +44,21 @@ namespace Haley.Utils {
                 IssuerSigningKey = new SymmetricSecurityKey(jwtparams.GetSecret())
             };
         }
+
+        public static ClaimsPrincipal ValidateToken(string token, TokenValidationParameters validationParams, out SecurityToken validatedToken) {
+            var handler = new JwtSecurityTokenHandler();
+            try {
+                var principal = handler.ValidateToken(token, validationParams, out validatedToken);
+                return principal;
+            } catch (SecurityTokenException ex) {
+                Console.WriteLine($"Token validation failed: {ex.Message}");
+                validatedToken = null;
+                return null;
+            } catch (Exception ex) {
+                Console.WriteLine($"Unexpected error: {ex.Message}");
+                validatedToken = null;
+                return null;
+            }
+        }
     }
 }
