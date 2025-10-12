@@ -35,13 +35,20 @@ namespace Haley.Utils {
             return new TokenValidationParameters() {
                 ValidateIssuerSigningKey = true, //Important as this will verfiy the signature
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero,
+                ClockSkew = TimeSpan.FromMinutes(5), //Sometimes, the token would be generated with nbf (not before) value which is set in future.
                 RequireExpirationTime = true,
                 ValidateIssuer = jwtparams.ValidateIssuer,
                 ValidateAudience = jwtparams.ValidateAudience,
                 ValidIssuer = jwtparams.Issuer,
                 ValidAudience = jwtparams.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(jwtparams.GetSecret())
+                IssuerSigningKey = new SymmetricSecurityKey(jwtparams.GetSecret()),
+
+                // Prevent fallback to metadata or key resolution
+                RequireSignedTokens = true,
+                SignatureValidator = null,
+                IssuerSigningKeyResolver = null,
+                ValidateActor = false,
+                ValidateTokenReplay = false
             };
         }
 
