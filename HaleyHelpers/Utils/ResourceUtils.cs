@@ -26,7 +26,8 @@ namespace Haley.Utils
 
             //1. Preference to Environment variables
             foreach (var key in name) {
-                value = Environment.GetEnvironmentVariable(key);
+                value = Environment.GetEnvironmentVariable(key,EnvironmentVariableTarget.User); //For windows only, check in user variables
+                if (value == null) value = Environment.GetEnvironmentVariable(key); //For cross platform, check in system variables.
                 if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value)) && value.ToString() != "\"\"") return new Feedback(true).SetResult(value);
             }
 
