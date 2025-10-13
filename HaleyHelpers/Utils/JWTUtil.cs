@@ -32,6 +32,7 @@ namespace Haley.Utils {
         }
 
         public static TokenValidationParameters GenerateTokenValidationParams(JWTParameters jwtparams) {
+            if (jwtparams == null) return null;
             return new TokenValidationParameters() {
                 ValidateIssuerSigningKey = true, //Important as this will verfiy the signature
                 ValidateLifetime = true,
