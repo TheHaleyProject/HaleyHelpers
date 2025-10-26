@@ -50,8 +50,16 @@ namespace Haley.Utils
 
         public static bool PopulateVersionedPath(string dir_path,string file_basename, out string versionedPath) {
             file_basename = Path.GetFileName(file_basename);
+            var extension = Path.GetExtension(file_basename);
+
+            if (string.IsNullOrWhiteSpace(extension)) {
+                extension = "unknown";
+            }else {
+                extension.TrimStart('.');
+            }
+
             versionedPath = string.Empty;
-            string pattern = $@"^{Regex.Escape(file_basename)}.##v(\d+)##$";
+            string pattern = $@"^{Regex.Escape(file_basename)}.##v(\d+)##.{extension}$";
             var regex = new Regex(pattern,RegexOptions.IgnoreCase); //Case insensitive
             var files = Directory.GetFiles(dir_path, $"{file_basename}*");
             if (files.Length == 0 ) return false; //save as is. // There is no such file
@@ -64,7 +72,7 @@ namespace Haley.Utils
                 }
             }
             maxversion++; //Get the version number.
-            versionedPath =  Path.Combine(dir_path, $@"{file_basename}.##v{maxversion}##");
+            versionedPath =  Path.Combine(dir_path, $@"{file_basename}.##v{maxversion}##.{extension}");
             return true;
         }
 
