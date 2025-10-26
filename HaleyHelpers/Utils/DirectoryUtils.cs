@@ -119,6 +119,8 @@ namespace Haley.Utils
                     return true;
                 } catch (IOException ex) {
                     await Task.Delay(delayMilliseconds);
+                } catch (UnauthorizedAccessException) {
+                    await Task.Delay(delayMilliseconds);
                 }
             }
             return false;
