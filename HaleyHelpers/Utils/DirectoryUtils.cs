@@ -23,7 +23,8 @@ namespace Haley.Utils
                 try {
                     if (!sourceStream.CanSeek && sourceStream.Position > 0) return false;
                     sourceStream.Position = 0; // Reset the source stream position if it is seekable
-                    using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                    using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: bufferSize,
+                useAsync: true)) {
                         await sourceStream.CopyToAsync(fs, bufferSize);
                         return true;
                     }
@@ -32,7 +33,6 @@ namespace Haley.Utils
                     await Task.Delay(delayMilliseconds);
                 }
             }
-
             return false;
         }
 
