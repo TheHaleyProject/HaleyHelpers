@@ -19,6 +19,9 @@ namespace Haley.Utils
             return FetchVariable(null, name);
         }
 
+        public static bool IsDevelopment =>
+                 string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase);
+
         public static IFeedback FetchVariable(IConfiguration cfg, params string[] name) {
             //Search for a variable name
             if (name.Length < 1) return new Feedback(false, "No variable name provided");
