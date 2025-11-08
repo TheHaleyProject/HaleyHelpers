@@ -10,30 +10,40 @@ using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Haley.Utils
 {
     public static class DataUtils
     {
         public static async Task<IFeedback> PagedDataFetch<T>(List<T> source, Func<int, int, Task<List<T>>> dataprovider,
-            int count = 100) {
-            int skip = 0;
-            
+            int batch_count = 100, int total_count = 0, int offset = 0) {
+            int skip = offset; //Since this is initialized here, it is always zero.
+            if (skip < 0) skip = 0; 
+            var result = new List<T>();
+            if (total_count < 0) total_count = 0;
+            if (batch_count < 1) batch_count = 20; //Default batch count.
+
             while (true) {
                 List<T> datalist;
                 try {
-                    datalist = await dataprovider(skip, count);
+                    datalist = await dataprovider(skip, batch_count);
                 } catch (Exception ex) {
                     return new Feedback(false, $"Fetch failed at skip={skip}: {ex.Message}");
                 }
                 if (datalist == null || datalist.Count == 0) break;
-                source.AddRange(datalist);
-                if (datalist.Count < count) break; //If the count is less than requested, we assume there are no more items to fetch.
-                skip += count;
+                result.AddRange(datalist);
+                if (datalist.Count <= batch_count) break; //If the count is less than requested, we assume there are no more items to fetch.
+                if (total_count > 0 && result.Count >= total_count) break; //Sometimes, we might have skipped 1000 and are processing page 100, but still we haven't reached the total count, because we are not able to get the files.
+                skip += batch_count;
             }
-            return new Feedback(true, $"Fetched {source.Count} items successfully.");
+            source.AddRange(result);
+
+            var payload = new JsonObject { ["skipped"] = skip, ["batch_count"] = batch_count, ["total_count"] = total_count}.ToJsonString();
+            return new Feedback(true, $"Fetched {source.Count} items successfully.").SetResult(payload);
         }
 
         public static IEnumerable<object> RecursiveGroup<T,K>(IEnumerable<T> input, List<K> keys, Func<T, K, int, object> groupMaker, Func<object,object,int, object>resultMaker) {

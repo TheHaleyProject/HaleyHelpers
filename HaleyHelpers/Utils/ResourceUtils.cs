@@ -116,11 +116,12 @@ namespace Haley.Utils
                 throw;
             }
         }
-        public static byte[] GetEmbeddedResource(string full_resource_name, Assembly assembly_name)
+        public static byte[] GetEmbeddedResource(string full_resource_name, Assembly assembly = null)
         {
             try
             {
-                var _stream = assembly_name.GetManifestResourceStream(full_resource_name); //Get the resource from the assembly
+                if (assembly == null) assembly = Assembly.GetCallingAssembly();
+                var _stream = assembly.GetManifestResourceStream(full_resource_name); //Get the resource from the assembly
                 if (_stream == null) return null;
 
                 byte[] _stream_byte = new byte[_stream.Length]; //initiate a byte array
