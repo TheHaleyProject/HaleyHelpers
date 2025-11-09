@@ -1,5 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
+  <Import Project="..\..\HaleyProject\HaleyVersion.Props" />
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <SignAssembly>true</SignAssembly>
@@ -15,7 +15,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Product>Haley.Helpers</Product>
     <PackageId>Haley.Helpers</PackageId>
-    <Version>2.3.27</Version>
+    <Version>$(HaleyHelpersVersion)</Version>
     <AssemblyName>Haley.Helpers</AssemblyName>
     <PackageProjectUrl>https://github.com/rmsmech/HaleyHelpers</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rmsmech/HaleyHelpers</RepositoryUrl>
@@ -69,7 +69,7 @@
     </When>
 		<Otherwise>
 			<ItemGroup>
-				<PackageReference Include="Haley.Abstractions" Version="1.2.9.2" />
+				<PackageReference Include="Haley.Abstractions" Version="$(HaleyAbstractionsVersion)" />
 			</ItemGroup>
 		</Otherwise>
 	</Choose>-->
@@ -84,7 +84,7 @@
     </When>
     <Otherwise>
      <ItemGroup>
-       <PackageReference Include="Haley.Extensions" Version="2.3.26" />
+       <PackageReference Include="Haley.Extensions" Version="$(HaleyExtensionsVersion)" />
 	 </ItemGroup>
     </Otherwise>
 </Choose>  
