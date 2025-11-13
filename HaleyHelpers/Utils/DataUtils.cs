@@ -36,7 +36,7 @@ namespace Haley.Utils
                 }
                 if (datalist == null || datalist.Count == 0) break;
                 result.AddRange(datalist);
-                if (datalist.Count <= batch_count) break; //If the count is less than requested, we assume there are no more items to fetch.
+                if (datalist.Count < batch_count) break; //If the count is less than requested, we assume there are no more items to fetch.
                 if (total_count > 0 && result.Count >= total_count) break; //Sometimes, we might have skipped 1000 and are processing page 100, but still we haven't reached the total count, because we are not able to get the files.
                 skip += batch_count;
             }
