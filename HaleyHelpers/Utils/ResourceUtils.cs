@@ -10,10 +10,8 @@ using Microsoft.Extensions.Configuration;
 using Haley.Abstractions;
 using Haley.Models;
 
-namespace Haley.Utils
-{
-    public static class ResourceUtils
-    {
+namespace Haley.Utils {
+    public static class ResourceUtils {
 
         public static IFeedback FetchVariable(params string[] name) {
             return FetchVariable(null, name);
@@ -29,7 +27,7 @@ namespace Haley.Utils
 
             //1. Preference to Environment variables
             foreach (var key in name) {
-                value = Environment.GetEnvironmentVariable(key,EnvironmentVariableTarget.User); //For windows only, check in user variables
+                value = Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.User); //For windows only, check in user variables
                 if (value == null) value = Environment.GetEnvironmentVariable(key); //For cross platform, check in system variables.
                 if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value)) && value.ToString() != "\"\"") return new Feedback(true).SetResult(value);
             }
@@ -67,7 +65,7 @@ namespace Haley.Utils
                     result.Add(dic);
                     continue; //skip to next child
                 }
-                
+
                 //A child could contain a plain value or a json string or a section.
                 foreach (var grandChild in child.GetChildren()) {
                     if (grandChild.Value == null) {
@@ -88,53 +86,40 @@ namespace Haley.Utils
             return assembly_name.GetManifestResourceNames();
         }
 
-        public static bool DownloadEmbeddedResource(string resource_name, string save_dir_path, string save_file_name, Assembly assembly_name = null)
-        {
-            try
-            {
+        public static bool DownloadEmbeddedResource(string resource_name, string save_dir_path, string save_file_name, Assembly assembly_name = null) {
+            try {
                 if (assembly_name == null) assembly_name = Assembly.GetCallingAssembly();
                 if (save_file_name == null) save_file_name = resource_name; //use same resource name as target name
                 string full_file_path = Path.Combine(save_dir_path, save_file_name);
                 return DownloadEmbeddedResource(resource_name, full_file_path, assembly_name);
-            }
-            catch (Exception)
-            {
+            } catch (Exception) {
                 throw;
             }
         }
-        public static bool DownloadEmbeddedResource(string resource_name, string save_file_path, Assembly assembly_name=null)
-        {
-            try
-            {
+        public static bool DownloadEmbeddedResource(string resource_name, string save_file_path, Assembly assembly_name = null) {
+            try {
                 if (assembly_name == null) assembly_name = Assembly.GetCallingAssembly();
                 var _streambyte = GetEmbeddedResource(resource_name, assembly_name);
                 File.WriteAllBytes(save_file_path, _streambyte);
                 return true;
-            }
-            catch (Exception)
-            {
+            } catch (Exception) {
                 throw;
             }
         }
-        public static byte[] GetEmbeddedResource(string full_resource_name, Assembly assembly = null)
-        {
-            try
-            {
+        public static byte[] GetEmbeddedResource(string full_resource_name, Assembly assembly = null) {
+            try {
                 if (assembly == null) assembly = Assembly.GetCallingAssembly();
                 var _stream = assembly.GetManifestResourceStream(full_resource_name); //Get the resource from the assembly
                 if (_stream == null) return null;
 
                 byte[] _stream_byte = new byte[_stream.Length]; //initiate a byte array
-                using (var memstream = new MemoryStream())
-                {
+                using (var memstream = new MemoryStream()) {
                     _stream.CopyTo(memstream);
                     _stream_byte = memstream.ToArray();
                 }
 
                 return _stream_byte;
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 throw ex;
             }
         }
