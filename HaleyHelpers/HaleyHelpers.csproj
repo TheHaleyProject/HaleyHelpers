@@ -8,6 +8,8 @@
     <Description>Contains basic helpers for .NET Framework and Core</Description>
     <Company>TheHaleyProject</Company>
     <Authors>Lingam</Authors>
+    <LangVersion>8.0</LangVersion>
+    <Nullable>enable</Nullable>
     <Copyright>Haley 2020</Copyright>
     <PackageIcon>Haley.png</PackageIcon>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
