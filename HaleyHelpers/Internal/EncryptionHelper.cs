@@ -58,7 +58,7 @@ namespace Haley.Internal
                 }
                 catch (Exception ex)
                 {
-                    throw ex;
+                    throw;
                 }
             }
         }
@@ -73,7 +73,7 @@ namespace Haley.Internal
                 }
                 catch (Exception ex)
                 {
-                    throw ex;
+                    throw;
                 }
             }
 
@@ -96,7 +96,7 @@ namespace Haley.Internal
                 }
                 catch (Exception ex)
                 {
-                    throw ex;
+                    throw;
                 }
                 finally
                 {
@@ -143,7 +143,7 @@ namespace Haley.Internal
                 }
                 catch (Exception ex)
                 {
-                    throw ex;
+                    throw;
                 }
             }
             public static void Verify(XmlDocument input_doc, string public_key, out bool _status)
@@ -173,7 +173,7 @@ namespace Haley.Internal
                 }
                 catch (Exception ex)
                 {
-                    throw ex;
+                    throw;
                 }
             }
         }

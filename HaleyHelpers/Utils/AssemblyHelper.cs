@@ -149,8 +149,8 @@ namespace Haley.Utils
                     }
                 }
             }
-            catch (Exception ex) {
-                throw ex;
+            catch (Exception) {
+                throw;
             }
         }
 
