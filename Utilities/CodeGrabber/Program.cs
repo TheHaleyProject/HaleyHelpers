@@ -8,13 +8,12 @@ using System.Linq;
 using System.Text;
 
 static class Program {
-    // Keeps scanning fast / avoids junk. Remove if you really want EVERYTHING.
     static readonly HashSet<string> ExcludeDirs = new(StringComparer.OrdinalIgnoreCase)
         { "bin", "obj", ".git", ".vs", "node_modules" };
 
     public static int Main(string[] args) {
         if (args.Length < 1) {
-            Console.WriteLine("Usage: CsGrab <baseFolderPath>");
+            Console.WriteLine("Usage: CodeGrabber.exe <baseFolderPath> [--prefix <name>]");
             return 2;
         }
 
@@ -24,13 +23,19 @@ static class Program {
             return 2;
         }
 
+        var prefix = GetPrefix(args);
+        prefix = SanitizeFileName(prefix);
+
         var outDir = Directory.GetCurrentDirectory();
 
-        var outInterfaces = Path.Combine(outDir, "_interfaces.txt");
-        var outClasses = Path.Combine(outDir, "_classes.txt");
-        var outStructs = Path.Combine(outDir, "_structs.txt");
-        var outEvents = Path.Combine(outDir, "_events.txt");
-        var outEnums = Path.Combine(outDir, "_enums.txt");
+        string FileName(string category)
+            => string.IsNullOrWhiteSpace(prefix) ? $"_{category}.txt" : $"{prefix}_{category}.txt";
+
+        var outInterfaces = Path.Combine(outDir, FileName("interfaces"));
+        var outClasses = Path.Combine(outDir, FileName("classes"));
+        var outStructs = Path.Combine(outDir, FileName("structs"));
+        var outEvents = Path.Combine(outDir, FileName("events"));
+        var outEnums = Path.Combine(outDir, FileName("enums"));
 
         var sbInterfaces = new StringBuilder();
         var sbClasses = new StringBuilder();
@@ -42,62 +47,80 @@ static class Program {
 
         foreach (var file in EnumerateCsFiles(baseDir)) {
             fileCount++;
+
             string text;
             try { text = File.ReadAllText(file); } catch { continue; }
 
             var tree = CSharpSyntaxTree.ParseText(text);
             var root = tree.GetCompilationUnitRoot();
 
-            // Interfaces
             foreach (var i in root.DescendantNodes().OfType<InterfaceDeclarationSyntax>()) {
                 ifaceCount++;
                 AppendBlock(sbInterfaces, file, i);
             }
 
-            // Classes (includes nested classes too)
             foreach (var c in root.DescendantNodes().OfType<ClassDeclarationSyntax>()) {
                 classCount++;
                 AppendBlock(sbClasses, file, c);
             }
 
-            // Structs (includes nested structs too)
             foreach (var s in root.DescendantNodes().OfType<StructDeclarationSyntax>()) {
                 structCount++;
                 AppendBlock(sbStructs, file, s);
             }
 
-            // Enums (includes nested enums too)
             foreach (var e in root.DescendantNodes().OfType<EnumDeclarationSyntax>()) {
                 enumCount++;
                 AppendBlock(sbEnums, file, e);
             }
 
-            // Events: both "event X Y;" and "event X Y { add/remove }"
             foreach (var e in root.DescendantNodes().OfType<EventFieldDeclarationSyntax>()) {
                 eventCount++;
                 AppendBlock(sbEvents, file, e);
             }
+
             foreach (var e in root.DescendantNodes().OfType<EventDeclarationSyntax>()) {
                 eventCount++;
                 AppendBlock(sbEvents, file, e);
             }
         }
 
-        File.WriteAllText(outInterfaces, sbInterfaces.ToString(), Encoding.UTF8);
-        File.WriteAllText(outClasses, sbClasses.ToString(), Encoding.UTF8);
-        File.WriteAllText(outStructs, sbStructs.ToString(), Encoding.UTF8);
-        File.WriteAllText(outEnums, sbEnums.ToString(), Encoding.UTF8);
-        File.WriteAllText(outEvents, sbEvents.ToString(), Encoding.UTF8);
+        // Only create files if count > 0; delete old ones if count == 0
+        var created = new List<string>();
+        WriteIfAny(outInterfaces, sbInterfaces, ifaceCount, created);
+        WriteIfAny(outClasses, sbClasses, classCount, created);
+        WriteIfAny(outStructs, sbStructs, structCount, created);
+        WriteIfAny(outEnums, sbEnums, enumCount, created);
+        WriteIfAny(outEvents, sbEvents, eventCount, created);
 
         Console.WriteLine("Done.");
         Console.WriteLine($"Scanned files: {fileCount}");
-        Console.WriteLine($"Interfaces:   {ifaceCount} -> {Path.GetFileName(outInterfaces)}");
-        Console.WriteLine($"Classes:      {classCount} -> {Path.GetFileName(outClasses)}");
-        Console.WriteLine($"Structs:      {structCount} -> {Path.GetFileName(outStructs)}");
-        Console.WriteLine($"Enums:        {enumCount} -> {Path.GetFileName(outEnums)}");
-        Console.WriteLine($"Events:       {eventCount} -> {Path.GetFileName(outEvents)}");
+        if (ifaceCount > 0) Console.WriteLine($"Interfaces:   {ifaceCount} -> {Path.GetFileName(outInterfaces)}");
+        else Console.WriteLine($"Interfaces:   0 (no file)");
+        if (classCount > 0) Console.WriteLine($"Classes:      {classCount} -> {Path.GetFileName(outClasses)}");
+        else Console.WriteLine($"Classes:      0 (no file)");
+        if (structCount > 0) Console.WriteLine($"Structs:      {structCount} -> {Path.GetFileName(outStructs)}");
+        else Console.WriteLine($"Structs:      0 (no file)");
+        if (enumCount > 0) Console.WriteLine($"Enums:        {enumCount} -> {Path.GetFileName(outEnums)}");
+        else Console.WriteLine($"Enums:        0 (no file)");
+        if (eventCount > 0) Console.WriteLine($"Events:       {eventCount} -> {Path.GetFileName(outEvents)}");
+        else Console.WriteLine($"Events:       0 (no file)");
 
         return 0;
+    }
+
+    static void WriteIfAny(string path, StringBuilder sb, int count, List<string> created) {
+        try {
+            if (count <= 0) {
+                if (File.Exists(path)) File.Delete(path); // prevents stale confusion
+                return;
+            }
+
+            File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+            created.Add(path);
+        } catch {
+            // keep it simple: ignore write errors, but you can log if you want
+        }
     }
 
     static IEnumerable<string> EnumerateCsFiles(string root) {
@@ -156,5 +179,23 @@ static class Program {
             .ToArray();
 
         return types.Length == 0 ? "" : string.Join(".", types);
+    }
+
+    static string? GetPrefix(string[] args) {
+        // Supports: --prefix queries
+        for (int i = 0; i < args.Length; i++) {
+            if (string.Equals(args[i], "--prefix", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                return args[i + 1];
+        }
+        return null;
+    }
+
+    static string? SanitizeFileName(string? s) {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+
+        foreach (var c in Path.GetInvalidFileNameChars())
+            s = s.Replace(c, '_');
+
+        return s.Trim();
     }
 }
