@@ -13,7 +13,7 @@ static class Program {
 
     public static int Main(string[] args) {
         if (args.Length < 1) {
-            Console.WriteLine("Usage: CodeGrabber.exe <baseFolderPath> [--prefix <name>]");
+            Console.WriteLine("Usage: CodeGrabber.exe <baseFolderPath> [--p|--prefix <name>] [--s|--suffix <ver>]");
             return 2;
         }
 
@@ -23,13 +23,27 @@ static class Program {
             return 2;
         }
 
-        var prefix = GetPrefix(args);
-        prefix = SanitizeFileName(prefix);
+        var prefix = SanitizeFileToken(GetArg(args, "--p", "--prefix"));
+        var suffix = SanitizeFileToken(GetArg(args, "--s", "--suffix"));
 
         var outDir = Directory.GetCurrentDirectory();
 
-        string FileName(string category)
-            => string.IsNullOrWhiteSpace(prefix) ? $"_{category}.txt" : $"{prefix}_{category}.txt";
+        string FileName(string category) {
+            // category is like: interfaces/classes/structs/enums/events
+            // Default: _classes.txt (if no prefix and no suffix)
+            var name = category;
+
+            if (!string.IsNullOrWhiteSpace(prefix))
+                name = $"{prefix}_{name}";
+
+            if (!string.IsNullOrWhiteSpace(suffix))
+                name = $"{name}_{suffix}";
+
+            if (string.IsNullOrWhiteSpace(prefix) && string.IsNullOrWhiteSpace(suffix))
+                return $"_{category}.txt";
+
+            return $"{name}.txt";
+        }
 
         var outInterfaces = Path.Combine(outDir, FileName("interfaces"));
         var outClasses = Path.Combine(outDir, FileName("classes"));
@@ -85,41 +99,33 @@ static class Program {
             }
         }
 
-        // Only create files if count > 0; delete old ones if count == 0
-        var created = new List<string>();
-        WriteIfAny(outInterfaces, sbInterfaces, ifaceCount, created);
-        WriteIfAny(outClasses, sbClasses, classCount, created);
-        WriteIfAny(outStructs, sbStructs, structCount, created);
-        WriteIfAny(outEnums, sbEnums, enumCount, created);
-        WriteIfAny(outEvents, sbEvents, eventCount, created);
+        // Only create files if count > 0; delete old ones if count == 0 (avoids stale confusion)
+        WriteIfAny(outInterfaces, sbInterfaces, ifaceCount);
+        WriteIfAny(outClasses, sbClasses, classCount);
+        WriteIfAny(outStructs, sbStructs, structCount);
+        WriteIfAny(outEnums, sbEnums, enumCount);
+        WriteIfAny(outEvents, sbEvents, eventCount);
 
         Console.WriteLine("Done.");
         Console.WriteLine($"Scanned files: {fileCount}");
-        if (ifaceCount > 0) Console.WriteLine($"Interfaces:   {ifaceCount} -> {Path.GetFileName(outInterfaces)}");
-        else Console.WriteLine($"Interfaces:   0 (no file)");
-        if (classCount > 0) Console.WriteLine($"Classes:      {classCount} -> {Path.GetFileName(outClasses)}");
-        else Console.WriteLine($"Classes:      0 (no file)");
-        if (structCount > 0) Console.WriteLine($"Structs:      {structCount} -> {Path.GetFileName(outStructs)}");
-        else Console.WriteLine($"Structs:      0 (no file)");
-        if (enumCount > 0) Console.WriteLine($"Enums:        {enumCount} -> {Path.GetFileName(outEnums)}");
-        else Console.WriteLine($"Enums:        0 (no file)");
-        if (eventCount > 0) Console.WriteLine($"Events:       {eventCount} -> {Path.GetFileName(outEvents)}");
-        else Console.WriteLine($"Events:       0 (no file)");
+        Console.WriteLine(ifaceCount > 0 ? $"Interfaces:   {ifaceCount} -> {Path.GetFileName(outInterfaces)}" : "Interfaces:   0 (no file)");
+        Console.WriteLine(classCount > 0 ? $"Classes:      {classCount} -> {Path.GetFileName(outClasses)}" : "Classes:      0 (no file)");
+        Console.WriteLine(structCount > 0 ? $"Structs:      {structCount} -> {Path.GetFileName(outStructs)}" : "Structs:      0 (no file)");
+        Console.WriteLine(enumCount > 0 ? $"Enums:        {enumCount} -> {Path.GetFileName(outEnums)}" : "Enums:        0 (no file)");
+        Console.WriteLine(eventCount > 0 ? $"Events:       {eventCount} -> {Path.GetFileName(outEvents)}" : "Events:       0 (no file)");
 
         return 0;
     }
 
-    static void WriteIfAny(string path, StringBuilder sb, int count, List<string> created) {
+    static void WriteIfAny(string path, StringBuilder sb, int count) {
         try {
             if (count <= 0) {
-                if (File.Exists(path)) File.Delete(path); // prevents stale confusion
+                if (File.Exists(path)) File.Delete(path);
                 return;
             }
-
             File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
-            created.Add(path);
         } catch {
-            // keep it simple: ignore write errors, but you can log if you want
+            // keep simple
         }
     }
 
@@ -181,21 +187,21 @@ static class Program {
         return types.Length == 0 ? "" : string.Join(".", types);
     }
 
-    static string? GetPrefix(string[] args) {
-        // Supports: --prefix queries
+    static string? GetArg(string[] args, string shortKey, string longKey) {
         for (int i = 0; i < args.Length; i++) {
-            if (string.Equals(args[i], "--prefix", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-                return args[i + 1];
+            if (string.Equals(args[i], shortKey, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(args[i], longKey, StringComparison.OrdinalIgnoreCase)) {
+                if (i + 1 < args.Length) return args[i + 1];
+                return null;
+            }
         }
         return null;
     }
 
-    static string? SanitizeFileName(string? s) {
+    static string? SanitizeFileToken(string? s) {
         if (string.IsNullOrWhiteSpace(s)) return null;
-
         foreach (var c in Path.GetInvalidFileNameChars())
             s = s.Replace(c, '_');
-
         return s.Trim();
     }
 }
