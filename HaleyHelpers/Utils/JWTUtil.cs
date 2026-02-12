@@ -53,10 +53,17 @@ namespace Haley.Utils {
             };
         }
 
-        public static ClaimsPrincipal ValidateToken(string token, TokenValidationParameters validationParams, out SecurityToken validatedToken) {
+        public static ClaimsPrincipal ValidateToken(string token, TokenValidationParameters validationParams, out SecurityToken validatedToken, string authenticationType = null) {
             var handler = new JwtSecurityTokenHandler();
             try {
                 var principal = handler.ValidateToken(token, validationParams, out validatedToken);
+
+                // If authenticationType is specified, recreate the identity with it
+                if (!string.IsNullOrEmpty(authenticationType) && principal?.Identity is ClaimsIdentity oldIdentity) {
+                    var newIdentity = new ClaimsIdentity(oldIdentity.Claims, authenticationType);
+                    return new ClaimsPrincipal(newIdentity);
+                }
+
                 return principal;
             } catch (SecurityTokenException ex) {
                 Console.WriteLine($"Token validation failed: {ex.Message}");
