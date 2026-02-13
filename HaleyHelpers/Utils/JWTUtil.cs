@@ -1,12 +1,14 @@
-﻿using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+﻿using Haley.Models;
 using Microsoft.Identity.Client;
-using Haley.Models;
-using System.Text;
+using Microsoft.IdentityModel.Tokens;
 using System;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace Haley.Utils {
 
@@ -52,6 +54,8 @@ namespace Haley.Utils {
                 ValidateTokenReplay = false
             };
         }
+
+        public static ClaimsPrincipal ValidateToken(string token, JWTParameters jwtParams, out SecurityToken validatedToken, string authenticationType = null) => ValidateToken(token, GenerateTokenValidationParams(jwtParams), out validatedToken, authenticationType);
 
         public static ClaimsPrincipal ValidateToken(string token, TokenValidationParameters validationParams, out SecurityToken validatedToken, string authenticationType = null) {
             var handler = new JwtSecurityTokenHandler();
