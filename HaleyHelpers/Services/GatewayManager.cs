@@ -71,7 +71,7 @@ namespace Haley.Services {
             var provider = holder.Provider ?? throw new InvalidOperationException($"No provider registered for gateway {key}.");
 
             // Optional: attempt a pure load from DB/cache before locking
-            var loaded = await provider.TryLoadAsync(gateway).ConfigureAwait(false); //May be the gateway has already completed all relevant actions and have loaded the session, so we can avoid locking and provider calls if it's already there and valid.
+            var loaded = await provider.TryLoadAsync(gateway); //May be the gateway has already completed all relevant actions and have loaded the session, so we can avoid locking and provider calls if it's already there and valid.
             
             if (loaded != null && IsSessionValid(loaded, now)) {
                 gateway.Session = loaded;
@@ -99,7 +99,7 @@ namespace Haley.Services {
         /// <summary>
         /// Convenience: return token object (not string). Returns null if not usable.
         /// </summary>
-        public static async Task<IAPIGatewayToken?> GetTokenAsync<T>(this T gateway)
+        public static async Task<object?> GetTokenAsync<T>(this T gateway)
             where T : class, IAPIGateway {
             var res = await gateway.EnsureSessionAsync().ConfigureAwait(false);
             return (res.Session != null && res.Session.HasToken()) ? res.Session.Token : null;
