@@ -14,6 +14,8 @@ namespace Haley.Services {
         private static string GetKey<T>() => typeof(T).FullName ?? typeof(T).Name;
         private static string GetKey(IAPIGateway gw) => gw.GetType().FullName ?? gw.GetType().Name;
 
+        public static T AddOrGetGateway<T>(IGatewaySessionProvider provider) where T : class, IAPIGateway => AddOrGetGateway(Activator.CreateInstance<T>(), provider); //Create a new instance and register it. If already exists, return the existing one.
+
         /// <summary>
         /// Register (or return existing) gateway by concrete type. One instance per type key.
         /// </summary>
@@ -54,7 +56,7 @@ namespace Haley.Services {
         /// <summary>
         /// Ensure session is usable. This is the main method your API calls should use.
         /// </summary>
-        public static async Task<GatewaySessionResult> EnsureSessionAsync<T>(this T gateway)
+        static async Task<GatewaySessionResult> EnsureSessionAsync<T>(this T gateway)
             where T : class, IAPIGateway {
             if (gateway == null) return GatewaySessionResult.Failed("Gateway is null.");
 
@@ -69,7 +71,7 @@ namespace Haley.Services {
             var provider = holder.Provider ?? throw new InvalidOperationException($"No provider registered for gateway {key}.");
 
             // Optional: attempt a pure load from DB/cache before locking
-            var loaded = await provider.TryLoadAsync().ConfigureAwait(false); //May be the gateway has already completed all relevant actions and have loaded the session, so we can avoid locking and provider calls if it's already there and valid.
+            var loaded = await provider.TryLoadAsync(gateway).ConfigureAwait(false); //May be the gateway has already completed all relevant actions and have loaded the session, so we can avoid locking and provider calls if it's already there and valid.
             
             if (loaded != null && IsSessionValid(loaded, now)) {
                 gateway.Session = loaded;
@@ -84,7 +86,7 @@ namespace Haley.Services {
                 if (IsSessionValid(gateway.Session, now)) return GatewaySessionResult.Valid(gateway.Session);
 
                 // Ensure via provider (may refresh automatically or may require user action)
-                var result = await provider.EnsureAsync().ConfigureAwait(false);
+                var result = await provider.EnsureAsync(gateway).ConfigureAwait(false);
 
                 // If provider returned a session, attach it
                 if (result.Session != null) gateway.Session = result.Session;
@@ -102,6 +104,8 @@ namespace Haley.Services {
             var res = await gateway.EnsureSessionAsync().ConfigureAwait(false);
             return (res.Session != null && res.Session.HasToken()) ? res.Session.Token : null;
         }
+
+        public static Task<GatewaySessionResult> GetStatus<T>(this T gateway) where T : class, IAPIGateway => gateway.EnsureSessionAsync();
 
         /// <summary>
         /// Background/proactive monitor: call this periodically (e.g., every few hours).
@@ -125,11 +129,11 @@ namespace Haley.Services {
                 var timeLeft = s.ExpiresAtUtc.Value - now; //How long do we have till we expire? We can notify if it's less than the configured threshold, even if it's still valid. This allows proactive user action before hitting an expired state.
                
                 if (timeLeft <= notifyBeforeExpiry && timeLeft > TimeSpan.Zero) { //it timeleft is negative, then it is already expired, so we can skip this case and let the next case handle it. We only want to notify about upcoming expiry here.
-                    await provider.NotifyAsync(GatewayNotifyReason.SessionExpiringSoon, $"Session expires in {timeLeft.TotalHours:F1} hours.").ConfigureAwait(false);
+                    await provider.NotifyAsync(gateway,GatewayNotifyReason.SessionExpiringSoon, $"Session expires in {timeLeft.TotalHours:F1} hours.").ConfigureAwait(false);
                     holder.LastNotifyUtc = now;
                 } else if (timeLeft <= TimeSpan.Zero) {
                     // Expired case (optional)
-                    await provider.NotifyAsync(GatewayNotifyReason.SessionExpired,"Session has expired.").ConfigureAwait(false);
+                    await provider.NotifyAsync(gateway,GatewayNotifyReason.SessionExpired,"Session has expired.").ConfigureAwait(false);
                     holder.LastNotifyUtc = now;
                 }
             }
