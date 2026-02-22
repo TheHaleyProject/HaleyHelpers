@@ -8,11 +8,13 @@ using System.Data.Common;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Haley.Models;
 
 namespace Haley.Models
 {
     public abstract class APIGatewayBase<T> : IAPIGateway, IGatewaySessionProvider {
         protected abstract T Parameter { get; }
+        protected IClient CLIENT;
         public IAPIGatewaySession? Session { get; set; }
         public async Task<bool> HasValidSession() => (await this.GetStatus()).Status == GatewaySessionStatus.Valid;
         public virtual Task<IAPIGatewaySession?> TryLoadAsync(IAPIGateway gateway) {
