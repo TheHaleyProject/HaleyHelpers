@@ -17,7 +17,7 @@ namespace Haley.Utils
 {
     public static class FileUtils
     {
-        private static readonly Regex KeyRegex = new(@"^[a-zA-Z0-9][a-zA-Z0-9\-_]*$", RegexOptions.Compiled);
+        private static readonly Regex KeyRegex = new(@"^[a-zA-Z0-9][a-zA-Z0-9\-_]*$", RegexOptions.Compiled); 
 
         public static IReadOnlyDictionary<string, bool> ReadSeedConf(string filePath)
         {
@@ -35,14 +35,10 @@ namespace Haley.Utils
                     if (string.IsNullOrEmpty(line)) continue;
 
                     // ignore seed headings / comment blocks
-                    if (line.StartsWith("[") || line.StartsWith("##") || line.StartsWith("-")) continue;
+                    if (line.StartsWith("[") || line.StartsWith("#") || line.StartsWith("-")) continue;
 
-                    // Decide enabled/disabled by leading '#'
-                    bool enabled = true;
-                    if (line.StartsWith("#")) {
-                        enabled = false;
-                        line = line.Substring(1).Trim(); // remove '#'
-                    }
+                    // if it contains = 1 , true, =0 or no = is considered false.
+                    bool enabled = false;
 
                     // Remove inline comment portion (anything after a '#')
                     int inlineHash = line.IndexOf('#');
@@ -50,16 +46,24 @@ namespace Haley.Utils
 
                     if (string.IsNullOrEmpty(line)) continue;
 
-                    // Take the first token (in case there are extra words)
-                    var key = line.CleanSplit(' ', '\t')[0];
-
+                    var items = line.CleanSplit('=');
+                    if (items.Count() > 2) continue; //Something is wrong with this line of code.. We expect only a maxium of two components.
+                    var key = items[0]; //get the key.
+                    if (string.IsNullOrEmpty(key)) continue;
                     // Ensure it's a "real" key line
                     if (!KeyRegex.IsMatch(key)) continue;
 
+                    do {
+                        if (items.Length < 2) break;
+                            //Second portion is present..  We need to determine, if it is true or false.
+                            var value = items[1];
+                        if (string.IsNullOrEmpty(value)) break;
+                        enabled = value.ToBool();
+                    } while (false);
+            
                     // If repeated, last one wins
                     result[key] = enabled;
                 }
-
                 return result;
             }
             catch (Exception)
