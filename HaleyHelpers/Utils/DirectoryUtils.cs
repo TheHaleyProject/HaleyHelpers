@@ -48,31 +48,46 @@ namespace Haley.Utils
             return false;
         }
 
-        public static bool PopulateVersionedPath(string dir_path,string file_basename, out string versionedPath) {
+        /// <summary>
+        /// Computes the next versioned path for <paramref name="file_basename"/> inside <paramref name="dir_path"/>,
+        /// using the format <c>{filename}.##v{n}##.{ext}</c>.
+        /// When <paramref name="maxCopies"/> is greater than zero, revisions beyond that limit are pruned
+        /// (oldest first — lowest version numbers deleted first). Pruning is best-effort; failures are swallowed.
+        /// Returns <c>false</c> if the base file does not exist in the directory (nothing to version).
+        /// </summary>
+        public static bool PopulateVersionedPath(string dir_path, string file_basename, out string versionedPath, int maxCopies = 5) {
             file_basename = Path.GetFileName(file_basename);
             var extension = Path.GetExtension(file_basename);
 
             if (string.IsNullOrWhiteSpace(extension)) {
                 extension = "unknown";
-            }else {
-                extension.TrimStart('.');
+            } else {
+                extension = extension.TrimStart('.');
             }
 
             versionedPath = string.Empty;
-            string pattern = $@"^{Regex.Escape(file_basename)}.##v(\d+)##.{extension}$";
-            var regex = new Regex(pattern,RegexOptions.IgnoreCase); //Case insensitive
+            string pattern = $@"^{Regex.Escape(file_basename)}\.##v(\d+)##\.{Regex.Escape(extension)}$";
+            var regex = new Regex(pattern, RegexOptions.IgnoreCase);
             var files = Directory.GetFiles(dir_path, $"{file_basename}*");
-            if (files.Length == 0 ) return false; //save as is. // There is no such file
-            int maxversion = 0;
-            foreach (var file in files) {
-                var fname = Path.GetFileName(file);
-                var match = regex.Match(fname);
-                if (match.Success && int.TryParse(match.Groups[1].Value,out int version)) {
-                    maxversion = Math.Max(maxversion, version); 
+            if (files.Length == 0) return false; // base file not found — nothing to version
+
+            // Collect existing revision version numbers.
+            var revisions = files
+                .Select(f => { var m = regex.Match(Path.GetFileName(f)); return m.Success && int.TryParse(m.Groups[1].Value, out var n) ? (path: f, ver: n) : (path: f, ver: -1); })
+                .Where(x => x.ver >= 0)
+                .OrderByDescending(x => x.ver)
+                .ToList();
+
+            int maxversion = revisions.Count > 0 ? revisions[0].ver + 1 : 1;
+            versionedPath = Path.Combine(dir_path, $"{file_basename}.##v{maxversion}##.{extension}");
+
+            // Prune old revisions beyond maxCopies (keep the highest-numbered ones; +1 for the one we're about to create).
+            if (maxCopies > 0) {
+                foreach (var old in revisions.Skip(maxCopies - 1)) {
+                    try { File.Delete(old.path); } catch { /* best-effort */ }
                 }
             }
-            maxversion++; //Get the version number.
-            versionedPath =  Path.Combine(dir_path, $@"{file_basename}.##v{maxversion}##.{extension}");
+
             return true;
         }
 
