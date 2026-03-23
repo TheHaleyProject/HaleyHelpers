@@ -14,37 +14,52 @@ namespace Haley.Utils {
     public static class ResourceUtils {
 
         public static IFeedback FetchVariable(params string[] name) {
-            return FetchVariable(null, name);
+            return FetchVariableWith(null, name);
+        }
+
+        public static bool TryFetchVariable<T>(ref T result, params string[] name) {
+            try {
+                var fetched = FetchVariable(name);
+                if (fetched == null || !fetched.Status || fetched.Result == null) return false;
+
+                var fb = fetched.Result.TryAs<T>();
+                if (!fb.Status) return false;
+
+                result = fb.Result;
+                return true;
+            } catch (Exception) {
+                return false;
+            }
         }
 
         public static bool IsDevelopment =>
                  string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase);
 
-        public static IFeedback FetchVariable(IConfiguration cfg, params string[] name) {
-            //Search for a variable name
+        public static IFeedback FetchVariableWith(IConfiguration cfg, params string[] name) {
             if (name.Length < 1) return new Feedback(false, "No variable name provided");
             object value = null;
 
-            //1. Preference to Environment variables
+            // 1. Preference to Environment variables
             foreach (var key in name) {
-                value = Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.User); //For windows only, check in user variables
-                if (value == null) value = Environment.GetEnvironmentVariable(key); //For cross platform, check in system variables.
-                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value)) && value.ToString() != "\"\"") return new Feedback(true).SetResult(value);
+                value = Environment.GetEnvironmentVariable(key, EnvironmentVariableTarget.User); // Windows user variables
+                if (value == null) value = Environment.GetEnvironmentVariable(key);              // Cross-platform system variables
+                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value)) && value.ToString() != "\"\"")
+                    return new Feedback(true).SetResult(value);
             }
 
-            //2. Appsettings.json
+            // 2. Appsettings.json
+            if (cfg == null) cfg = GenerateConfigurationRoot(); // attempt to generate, but not a failure if still null
 
-            if (cfg == null) {
-                cfg = GenerateConfigurationRoot();
-                if (cfg == null) return new Feedback(false, "Unable to generate configuration root");
+            if (cfg != null) {
+                foreach (var key in name) {
+                    value = cfg[key];
+                    if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value)))
+                        return new Feedback(true).SetResult(value);
+                }
             }
 
-            foreach (var key in name) {
-                value = cfg[key];
-                if (value != null && !string.IsNullOrWhiteSpace(Convert.ToString(value))) return new Feedback(true).SetResult(value);
-            }
-
-            return new Feedback(false, "Operation completed. No value found.");
+            // Value not found — not a failure, caller decides what to do with absence
+            return new Feedback(true).SetMessage("Operation completed. No value found.");
         }
 
         public static List<Dictionary<string, object>> AsDictionaryList(this IConfigurationSection section, char delimiter = ';') {
